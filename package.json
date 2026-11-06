@@ -1,0 +1,38 @@
+{
+  "name": "gamersmatrix",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@12.0.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --ui=stream",
+    "dev:web": "turbo run dev --filter=@gamersmatrix/web --ui=stream",
+    "dev:api": "turbo run dev --filter=@gamersmatrix/api --ui=stream",
+    "build": "turbo run build --ui=stream",
+    "build:web": "turbo run build --filter=@gamersmatrix/web --ui=stream",
+    "build:api": "turbo run build --filter=@gamersmatrix/api --ui=stream",
+    "start": "turbo run start --ui=stream",
+    "start:web": "turbo run start --filter=@gamersmatrix/web --ui=stream",
+    "start:api": "turbo run start --filter=@gamersmatrix/api --ui=stream",
+    "lint": "turbo run lint --ui=stream",
+    "db:generate": "npm run prisma:generate -w @gamersmatrix/api",
+    "db:migrate": "npm run prisma:migrate -w @gamersmatrix/api",
+    "db:seed": "npm run prisma:seed -w @gamersmatrix/api",
+    "db:studio": "npm run prisma:studio -w @gamersmatrix/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4"
+  },
+  "allowScripts": {
+    "prisma": true,
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "bcrypt": true,
+    "esbuild": true,
+    "unrs-resolver": true,
+    "@parcel/watcher": true
+  }
+}

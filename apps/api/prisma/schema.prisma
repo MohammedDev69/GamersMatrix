@@ -1,0 +1,432 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  EDITOR
+  ADMIN
+}
+
+enum KeyStatus {
+  AVAILABLE
+  RESERVED
+  DELIVERED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum FulfillmentStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+enum ProductKind {
+  GAME_KEY
+  GIFT_CARD
+  SERVICE
+  TOP_UP
+}
+
+enum GiftDeliveryMethod {
+  EMAIL
+  WHATSAPP
+}
+
+enum PublicationStatus {
+  DRAFT
+  IN_REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  ENDED
+  ARCHIVED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  name         String
+  role         Role           @default(USER)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  cart         Cart?
+  orders       Order[]
+  wishlist     WishlistItem[]
+  reviews      Review[]
+  auditLogs    AuditLog[]     @relation("AuditActor")
+  revisions    PublicationRevision[]
+}
+
+model Category {
+  id            String    @id @default(cuid())
+  name          String
+  nameEn        String?
+  slug          String    @unique
+  description   String?
+  descriptionEn String?
+  icon          String?
+  sortOrder     Int       @default(0)
+  visible       Boolean   @default(true)
+  products      Product[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([visible, sortOrder])
+}
+
+model Product {
+  id                 String            @id @default(cuid())
+  title              String
+  titleEn            String?
+  slug               String            @unique
+  description        String
+  descriptionEn      String?
+  imageUrl           String
+  platform           String
+  region             String?
+  /// Store-base unit amount (legacy field name kept for compatibility)
+  priceEGP           Decimal
+  originalPrice      Decimal?
+  discountPct        Int?
+  /// ISO currency for store-base amounts (default EGP until store settings change)
+  currencyCode       String            @default("EGP")
+  kind               ProductKind       @default(GAME_KEY)
+  deliveryNote       String?
+  deliveryNoteEn     String?
+  soldCount          Int               @default(0)
+  featured           Boolean           @default(false)
+  weeklyDeal         Boolean           @default(false)
+  hot                Boolean           @default(false)
+  isNew              Boolean           @default(false)
+  active             Boolean           @default(true)
+  /// Existing catalog rows migrate as PUBLISHED; new admin creates start as DRAFT in service.
+  publicationStatus  PublicationStatus @default(PUBLISHED)
+  publishedAt        DateTime?
+  scheduledAt        DateTime?
+  /// Set when the in-process scheduler fails to publish a due item; cleared on success/retry.
+  scheduleError      String?
+  seoTitle           String?
+  seoDescription     String?
+  ogImageUrl         String?
+  internalNotes      String?
+  categoryId         String
+  category           Category          @relation(fields: [categoryId], references: [id])
+  keys               ProductKey[]
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+  wishlist           WishlistItem[]
+  reviews            Review[]
+  variants           ProductVariant[]
+  media              ProductMedia[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([publicationStatus, active])
+  @@index([categoryId])
+  @@index([kind])
+  @@index([featured, weeklyDeal])
+  @@index([scheduledAt])
+}
+
+model ProductVariant {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku          String   @unique
+  name         String
+  platform     String?
+  region       String?
+  priceEGP     Decimal
+  currencyCode String   @default("EGP")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([productId, active])
+}
+
+model MediaAsset {
+  id        String         @id @default(cuid())
+  url       String
+  alt       String?
+  mimeType  String?
+  width     Int?
+  height    Int?
+  sizeBytes Int?
+  products  ProductMedia[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model ProductMedia {
+  id      String     @id @default(cuid())
+  productId String
+  product Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mediaId String
+  media   MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  sortOrder Int      @default(0)
+
+  @@unique([productId, mediaId])
+  @@index([productId, sortOrder])
+}
+
+model ProductKey {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  status      KeyStatus  @default(AVAILABLE)
+  productId   String
+  product     Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItemId String?    @unique
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id])
+  createdAt   DateTime   @default(now())
+  deliveredAt DateTime?
+
+  @@index([productId, status])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+  createdAt DateTime   @default(now())
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id                  String               @id @default(cuid())
+  orderNumber         String               @unique @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id])
+  status              OrderStatus          @default(PENDING)
+  fulfillmentStatus   FulfillmentStatus    @default(PENDING)
+  totalEGP            Decimal
+  currencyCode        String               @default("EGP")
+  couponCode          String?
+  discountEGP         Decimal              @default(0)
+  isGift              Boolean              @default(false)
+  recipientName       String?
+  recipientEmail      String?
+  recipientWhatsApp   String?
+  giftMessage         String?
+  giftDeliveryMethod  GiftDeliveryMethod?
+  giftDelivered       Boolean              @default(false)
+  giftDeliveredAt     DateTime?
+  items               OrderItem[]
+  payment             Payment?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id           String      @id @default(cuid())
+  orderId      String
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product     @relation(fields: [productId], references: [id])
+  title        String
+  unitPriceEGP Decimal
+  quantity     Int
+  productKey   ProductKey?
+}
+
+model Payment {
+  id                String         @id @default(cuid())
+  orderId           String         @unique
+  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status            PaymentStatus  @default(PENDING)
+  amountEGP         Decimal
+  currencyCode      String         @default("EGP")
+  paymobIntentionId String?
+  paymobOrderId     String?
+  transactionId     String?
+  rawPayload        Json?
+  events            PaymentEvent[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model PaymentEvent {
+  id              String   @id @default(cuid())
+  paymentId       String
+  payment         Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  providerEventId String?  @unique
+  eventType       String
+  payload         Json?
+  createdAt       DateTime @default(now())
+
+  @@index([paymentId, createdAt])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating    Int
+  body      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  status      CampaignStatus @default(DRAFT)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  priority    Int            @default(0)
+  coupons     Coupon[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, startsAt, endsAt])
+}
+
+model Coupon {
+  id               String     @id @default(cuid())
+  code             String     @unique
+  type             CouponType
+  value            Decimal
+  campaignId       String?
+  campaign         Campaign?  @relation(fields: [campaignId], references: [id])
+  startsAt         DateTime?
+  endsAt           DateTime?
+  maxRedemptions   Int?
+  redemptionCount  Int        @default(0)
+  minOrderEGP      Decimal?
+  active           Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([active, startsAt, endsAt])
+}
+
+model ContentPage {
+  id                String            @id @default(cuid())
+  slug              String            @unique
+  title             String
+  titleEn           String?
+  body              String
+  bodyEn            String?
+  locale            String            @default("ar")
+  publicationStatus PublicationStatus @default(DRAFT)
+  publishedAt       DateTime?
+  scheduledAt       DateTime?
+  /// Set when the in-process scheduler fails to publish a due item; cleared on success/retry.
+  scheduleError     String?
+  seoTitle          String?
+  seoDescription    String?
+  ogImageUrl        String?
+  internalNotes     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([publicationStatus, scheduledAt])
+}
+
+model PublicationRevision {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  snapshot   Json
+  note       String?
+  editorId   String?
+  editor     User?    @relation(fields: [editorId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  summary    String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model StoreSettings {
+  id                 String   @id @default("default")
+  storeName          String   @default("Gamers Matrix")
+  defaultLocale      String   @default("ar")
+  currencyCode       String   @default("EGP")
+  timezone           String   @default("Africa/Cairo")
+  supportWhatsApp    String?
+  supportEmail       String?
+  /// Owner-provided public notice (hours, legal entity, etc.). Empty = not configured.
+  publicNotice       String?
+  seoTitleDefault    String?
+  seoDescriptionDefault String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
