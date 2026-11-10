@@ -20,6 +20,8 @@
     "lint": "turbo run lint --ui=stream",
     "db:generate": "npm run prisma:generate -w @gamersmatrix/api",
     "db:migrate": "npm run prisma:migrate -w @gamersmatrix/api",
+    "db:deploy": "npm run prisma:deploy -w @gamersmatrix/api",
+    "db:migrate:supabase-data": "npm run prisma:migrate:supabase-data -w @gamersmatrix/api",
     "db:seed": "npm run prisma:seed -w @gamersmatrix/api",
     "db:studio": "npm run prisma:studio -w @gamersmatrix/api"
   },
@@ -30,7 +32,6 @@
     "prisma": true,
     "@prisma/client": true,
     "@prisma/engines": true,
-    "bcrypt": true,
     "esbuild": true,
     "unrs-resolver": true,
     "@parcel/watcher": true

@@ -2,6 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import {
+  AdminListState,
+  AdminCardsSkeleton,
+} from "@/components/admin/AdminListState";
 
 type Coupon = {
   id: string;
@@ -30,6 +34,7 @@ type Campaign = {
 export default function AdminCampaignsPage() {
   const [items, setItems] = useState<Campaign[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [code, setCode] = useState("");
@@ -37,9 +42,14 @@ export default function AdminCampaignsPage() {
   const [value, setValue] = useState("10");
   const [campaignId, setCampaignId] = useState("");
 
-  async function load() {
-    const data = await api.get<Campaign[]>("/admin/campaigns");
-    setItems(data);
+  async function load(soft = false) {
+    if (!soft) setLoading(true);
+    try {
+      const data = await api.get<Campaign[]>("/admin/campaigns");
+      setItems(data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -55,7 +65,7 @@ export default function AdminCampaignsPage() {
       });
       setName("");
       setSlug("");
-      await load();
+      await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     }
@@ -71,7 +81,7 @@ export default function AdminCampaignsPage() {
         campaignId: campaignId || undefined,
       });
       setCode("");
-      await load();
+      await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     }
@@ -80,7 +90,7 @@ export default function AdminCampaignsPage() {
   async function setStatus(id: string, status: string) {
     try {
       await api.patch(`/admin/campaigns/${id}`, { status });
-      await load();
+      await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
     }
@@ -88,6 +98,12 @@ export default function AdminCampaignsPage() {
 
   return (
     <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-extrabold text-white">الحملات والكوبونات</h1>
+        <p className="mt-1 text-sm text-[var(--gm-muted)]">
+          إدارة الخصومات والعروض الترويجية
+        </p>
+      </div>
       {error ? <p className="text-sm text-rose-400">{error}</p> : null}
 
       <form
@@ -159,47 +175,57 @@ export default function AdminCampaignsPage() {
         </button>
       </form>
 
-      <div className="space-y-4">
-        {items.map((c) => (
-          <div
-            key={c.id}
-            className="rounded-[var(--gm-radius-card)] border border-[var(--gm-border)] bg-[var(--gm-surface)] p-4"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="font-bold text-white">{c.name}</h2>
-                <p className="text-xs text-[var(--gm-muted)]" dir="ltr">
-                  {c.slug} · {c.status} · priority {c.priority}
-                </p>
+      <AdminListState
+        loading={loading}
+        empty={items.length === 0}
+        emptyTitle="لا توجد حملات بعد"
+        emptyDescription="أنشئ حملة من النموذج أعلاه ثم أضف كوبونات لها."
+        skeleton={<AdminCardsSkeleton count={3} className="!grid-cols-1" />}
+      >
+        <div className="space-y-4">
+          {items.map((c) => (
+            <div
+              key={c.id}
+              className="rounded-[var(--gm-radius-card)] border border-[var(--gm-border)] bg-[var(--gm-surface)] p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-bold text-white">{c.name}</h2>
+                  <p className="text-xs text-[var(--gm-muted)]" dir="ltr">
+                    {c.slug} · {c.status} · priority {c.priority}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {["DRAFT", "SCHEDULED", "ACTIVE", "ENDED", "ARCHIVED"].map(
+                    (s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="gm-btn gm-btn-outline !px-2 !py-1 !text-xs"
+                        onClick={() => setStatus(c.id, s)}
+                      >
+                        {s}
+                      </button>
+                    ),
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {["DRAFT", "SCHEDULED", "ACTIVE", "ENDED", "ARCHIVED"].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className="gm-btn gm-btn-outline !px-2 !py-1 !text-xs"
-                    onClick={() => setStatus(c.id, s)}
-                  >
-                    {s}
-                  </button>
+              <ul className="mt-3 space-y-1 text-sm text-[var(--gm-text-secondary)]">
+                {c.coupons.map((coupon) => (
+                  <li key={coupon.id} dir="ltr">
+                    {coupon.code} · {coupon.type} {String(coupon.value)} ·{" "}
+                    {coupon.redemptionCount}
+                    {coupon.maxRedemptions != null
+                      ? `/${coupon.maxRedemptions}`
+                      : ""}{" "}
+                    · {coupon.active ? "active" : "off"}
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
-            <ul className="mt-3 space-y-1 text-sm text-[var(--gm-text-secondary)]">
-              {c.coupons.map((coupon) => (
-                <li key={coupon.id} dir="ltr">
-                  {coupon.code} · {coupon.type} {String(coupon.value)} ·{" "}
-                  {coupon.redemptionCount}
-                  {coupon.maxRedemptions != null
-                    ? `/${coupon.maxRedemptions}`
-                    : ""}{" "}
-                  · {coupon.active ? "active" : "off"}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </AdminListState>
     </div>
   );
 }

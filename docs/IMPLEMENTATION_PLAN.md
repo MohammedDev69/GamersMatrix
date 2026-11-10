@@ -1,6 +1,6 @@
 # Gamers Matrix — Implementation Plan
 
-> **Status:** Phase 0–6 complete (through account/support polish + rate limits + mail adapter). Approved architecture defaults locked below.  
+> **Status:** Phase 0–6 complete. Database/auth decisions D2 and D5 were explicitly superseded on 2026-11-09 by the Supabase migration; see [`SUPABASE.md`](./SUPABASE.md).
 > **Design contract:** [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) — follow for every UI phase.  
 > **Phase prompts:** [`IMPLEMENTATION_PROMPTS.md`](./IMPLEMENTATION_PROMPTS.md) — run one phase at a time.  
 > **Do not** treat this file as permission to implement multiple phases at once.
@@ -22,21 +22,21 @@
 ```mermaid
 flowchart LR
   Browser["Browser ar/en"] --> Web["apps/web Next.js 15"]
-  Web -->|"JWT Bearer + REST"| Api["apps/api NestJS"]
+  Web -->|"Supabase JWT + REST"| Api["apps/api NestJS"]
+  Web --> Auth["Supabase Auth: email / Google / Discord"]
   Api --> Prisma["Prisma"]
-  Prisma --> Db["SQLite dev.db"]
+  Prisma --> Db["Supabase PostgreSQL"]
   Api --> Paymob["Paymob HMAC webhooks"]
-  Docker["docker-compose"] -.-> Pg["Postgres 16 optional"]
 ```
 
 | Area | Finding |
 |------|---------|
 | **Monorepo** | npm workspaces + Turbo (`apps/*`, `packages/*`). Package manager: **npm** (`package-lock.json`, `packageManager: npm@12.0.2`). |
 | **Web** | Next.js **15.5** App Router, React 19, Tailwind v4, `next-intl` (default `ar`, `localePrefix: always`), Lucide. Entry: `apps/web/src/app`, middleware `apps/web/src/middleware.ts`. |
-| **API** | NestJS 11, Prisma 6, JWT/Passport, class-validator. Entry: `apps/api/src/main.ts`. Port 3001. |
+| **API** | NestJS 11, Prisma 6, Supabase JWT verification (JWKS), class-validator. Entry: `apps/api/src/main.ts`. Port 3001. |
 | **Shared packages** | `packages/` is empty (`.gitkeep` only). |
-| **DB** | SQLite via Prisma (`apps/api/prisma/schema.prisma`); optional Postgres in `docker-compose.yml`. |
-| **Auth** | Custom JWT in `localStorage` (`gm_token`); roles `USER` / `ADMIN`. No NextAuth/Clerk. |
+| **DB** | Supabase PostgreSQL via Prisma transaction/session poolers. SQLite retained only as a one-time migration source. |
+| **Auth** | Supabase Auth with email/password, Google, Discord; access tokens verified by Nest via JWKS. Roles remain authoritative in the commerce `User` table. |
 | **Payments** | Custom Paymob intention + HMAC webhook (`apps/api/src/payments/`); empty keys → mock fulfillment (README). |
 | **Design tokens in code** | Blue/slate palette in `apps/web/src/app/globals.css` (`--gm-accent: #2563eb`, Tajawal). **Diverges from design-system violet/plum contract.** |
 | **UI kit** | Feature components under `apps/web/src/components/`; only light primitive: `ui/Reveal.tsx`. No shadcn. |
@@ -81,10 +81,10 @@ Prefer the existing stack. No new top-level apps.
 |-------|----------|
 | **Web** | Keep `@gamersmatrix/web`. Evolve tokens/primitives in-place; add reusable UI under `components/ui`. Do not force a full shadcn install unless a later phase truly needs it. |
 | **API** | Keep `@gamersmatrix/api` as the single backend. Public vs admin separation stays in Nest controllers/services. |
-| **DB** | Keep SQLite for local/dev; Postgres remains the documented production path. Schema changes via Prisma migrations only. |
+| **DB** | Supabase PostgreSQL for every environment; schema changes via PostgreSQL Prisma migrations. |
 | **Currency** | Keep Paymob; introduce configurable store currency/settings. Phase 3: migrate `priceEGP` / `totalEGP` toward amount + currency code (with safe migration). |
 | **Payments** | Keep Paymob; wrap behind a small provider interface (mock vs live). Phase 4: strengthen webhook idempotency. Never treat client return URL as payment proof. |
-| **Auth** | Keep JWT for Phases 1–5; httpOnly cookie / CSRF hardening planned for Phase 6–7. |
+| **Auth** | Supabase Auth owns credentials and OAuth; Nest validates Supabase JWTs and preserves commerce roles/relations. |
 | **Queue** | No Redis/Bull in early phases. Phase 5 scheduled publish: Nest in-process scheduler polling due items. Redis only if multi-instance locking is required later. |
 | **Shared package** | Defer `packages/shared` until Phase 3+ duplication warrants it. |
 
@@ -99,10 +99,10 @@ Plan approval locks the recommended defaults. Change only with an explicit overr
 | ID | Topic | Locked decision |
 |----|--------|-----------------|
 | **D1** | Visual rebrand | Phase 1 aligns tokens/fonts to `DESIGN_SYSTEM.md` (violet), replacing current blue/Tajawal primary look. |
-| **D2** | Database | Stay on SQLite for local; Postgres remains optional documented path. Do not force PostgreSQL provider in Phase 3 unless re-approved. |
+| **D2** | Database | **Superseded:** Supabase PostgreSQL is now mandatory; migrate legacy SQLite with the guarded transfer script. |
 | **D3** | Payments / currency | Keep Paymob; migrate hardcoded `*EGP` fields to amount + currency; default currency from settings/env. |
 | **D4** | Reviews / soldCount | Hide or gate public reviews/sold metrics until verified; no fabricated social proof. |
-| **D5** | Auth storage | Keep bearer JWT short-term; plan httpOnly cookie migration in Phase 6–7. |
+| **D5** | Auth storage | **Superseded:** Supabase manages sessions; the API receives short-lived Supabase bearer tokens. |
 | **D6** | Scheduler infra | Nest in-process schedule first; no Redis unless multi-instance needs appear. |
 | **D7** | Legal pages | Structured placeholders + settings fields; no invented company registration claims. |
 | **D8** | `packages/shared` | Defer until Phase 3+ duplication warrants it. |
@@ -163,8 +163,10 @@ Plan approval locks the recommended defaults. Change only with an explicit overr
 | Name | Description |
 |------|-------------|
 | `DATABASE_URL` | Prisma connection string |
-| `JWT_SECRET` | Auth token signing secret |
-| `JWT_EXPIRES_IN` | JWT lifetime |
+| `DIRECT_URL` | Supabase session/direct connection used for migrations |
+| `SUPABASE_URL` | Supabase project origin and JWT issuer |
+| `SUPABASE_PUBLISHABLE_KEY` | Publishable Auth key; used only for legacy HS256 validation fallback |
+| `SUPABASE_ADMIN_EMAILS` | Explicit admin email allow-list |
 | `PORT` | API listen port |
 | `FRONTEND_URL` | Storefront origin for CORS / payment return redirects |
 | `PAYMOB_API_KEY` | Paymob API key |
@@ -185,6 +187,8 @@ Plan approval locks the recommended defaults. Change only with an explicit overr
 | Name | Description |
 |------|-------------|
 | `NEXT_PUBLIC_API_URL` | API base URL |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project origin |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser-safe Supabase Auth key |
 | `NEXT_PUBLIC_WHATSAPP` | Support WhatsApp link |
 | `NEXT_PUBLIC_STORE_NAME` | *(planned)* Display store name |
 | `NEXT_PUBLIC_DEFAULT_CURRENCY` | *(planned)* Display currency hint; authoritative totals remain server-side |
@@ -196,9 +200,9 @@ Configure secrets via local `.env` / host secret management. Do not paste secret
 ## 7. Risks and known gaps
 
 - Webhook path exists but idempotency/replay safety needs hardening (Phase 4).
-- `ProductKey.code` stored plaintext in SQLite — design expects encrypted-at-rest or provider-managed secrets (Phase 3–4).
+- `ProductKey.code` remains application-managed in Supabase PostgreSQL; field-level encryption should be added before high-risk production inventory.
 - Admin is binary `ADMIN` only — Content Studio permissions need expansion (Phase 3/5).
-- Nested `apps/api/package-lock.json` can confuse installs — avoid touching unless install issues appear.
+- The monorepo now uses the root `package-lock.json` only.
 - Design-system left desktop rail vs Arabic RTL: contract preserves left rail with RTL content — implement as specified.
 - No web `.env.example` yet (add by Phase 7 at latest; earlier if web env surface grows).
 - Root has no dedicated `typecheck` / `test` scripts; API e2e is largely a Nest scaffold leftover.

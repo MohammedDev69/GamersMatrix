@@ -36,22 +36,25 @@ export function CountdownTimer({ endsAt, className = "" }: CountdownTimerProps) 
     d.setHours(23, 59, 59, 0);
     return d.getTime();
   });
-  const [parts, setParts] = useState(() => getParts(target));
+  // Server and client compute different values for Date.now() — render a
+  // stable placeholder until mounted, then tick, to avoid hydration mismatch.
+  const [parts, setParts] = useState<ReturnType<typeof getParts> | null>(null);
 
   useEffect(() => {
+    setParts(getParts(target));
     const id = setInterval(() => setParts(getParts(target)), 1000);
     return () => clearInterval(id);
   }, [target]);
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      <Unit value={parts.days} label="يوم" />
+      <Unit value={parts?.days ?? 0} label="يوم" />
       <span className="text-[var(--gm-muted)]">:</span>
-      <Unit value={parts.hours} label="ساعة" />
+      <Unit value={parts?.hours ?? 0} label="ساعة" />
       <span className="text-[var(--gm-muted)]">:</span>
-      <Unit value={parts.minutes} label="دقيقة" />
+      <Unit value={parts?.minutes ?? 0} label="دقيقة" />
       <span className="text-[var(--gm-muted)]">:</span>
-      <Unit value={parts.seconds} label="ثانية" />
+      <Unit value={parts?.seconds ?? 0} label="ثانية" />
     </div>
   );
 }

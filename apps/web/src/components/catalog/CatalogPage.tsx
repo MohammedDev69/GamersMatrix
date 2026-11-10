@@ -45,7 +45,6 @@ export function CatalogPage({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [source, setSource] = useState<string>("api");
 
   const filter = searchParams.get("filter") || "all";
   const sort = searchParams.get("sort") || "popular";
@@ -90,7 +89,6 @@ export function CatalogPage({
         );
         setHasMore(result.hasMore);
         setPage(nextPage);
-        setSource(result.source);
       } catch {
         if (!append) {
           setError(true);
@@ -149,12 +147,6 @@ export function CatalogPage({
           as="h1"
         />
 
-        {source === "dev-fixtures" ? (
-          <p className="mb-4 text-xs text-[var(--gm-warning)]" role="status">
-            {t("fixtureNotice")}
-          </p>
-        ) : null}
-
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             {filters.map((f) => {
@@ -194,7 +186,7 @@ export function CatalogPage({
         </div>
 
         {loading ? (
-          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="mt-8 grid grid-cols-2 gap-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="space-y-3">
                 <Skeleton className="aspect-[3/4] w-full rounded-[var(--gm-radius-card)]" />
@@ -226,7 +218,7 @@ export function CatalogPage({
           </div>
         ) : (
           <>
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <div className="mt-8 grid grid-cols-2 gap-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {items.map((product, i) => (
                 <ProductCard key={product.id} product={product} index={i} />
               ))}

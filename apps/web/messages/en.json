@@ -18,7 +18,10 @@
     "wishlist": "Wishlist",
     "cart": "Cart",
     "menu": "Menu",
-    "search": "Search products..."
+    "search": "Search products...",
+    "searching": "Searching...",
+    "noResults": "No matching results",
+    "viewResults": "View all results"
   },
   "Home": {
     "heroTitle": "Buy anything digital.",
@@ -185,7 +188,10 @@
     "audit": "Audit log",
     "users": "Users",
     "settings": "Settings",
-    "viewStore": "View store"
+    "viewStore": "View store",
+    "groupCatalog": "Catalog & content",
+    "groupSales": "Sales & customers",
+    "groupSystem": "System"
   },
   "Account": {
     "title": "My account",

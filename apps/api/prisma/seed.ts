@@ -8,7 +8,6 @@ import {
   PublicationStatus,
   CouponType,
 } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -36,6 +35,11 @@ type SeedProduct = {
 };
 
 async function main() {
+  if (process.env.SEED_ALLOW_RESET !== 'true') {
+    throw new Error(
+      'Seed is destructive. Set SEED_ALLOW_RESET=true only for an empty development Supabase project.',
+    );
+  }
   console.log('Seeding Gamers Matrix database...');
 
   // Dev seed is intentionally destructive and re-runnable locally.
@@ -161,14 +165,11 @@ async function main() {
     createdCategories.map((c) => [c.slug, c]),
   );
 
-  const adminHash = await bcrypt.hash('Admin123!', 10);
-  const demoHash = await bcrypt.hash('Demo123!', 10);
-
   const admin = await prisma.user.create({
     data: {
       email: 'mohammed1.nasr.elshreef@gmail.com',
-      passwordHash: adminHash,
       name: 'Mohammed',
+      authProvider: 'supabase',
       role: Role.ADMIN,
       cart: { create: {} },
     },
@@ -177,19 +178,18 @@ async function main() {
   const demo = await prisma.user.create({
     data: {
       email: 'demo@gamersmatrix.com',
-      passwordHash: demoHash,
       name: 'Demo User',
+      authProvider: 'seed',
       role: Role.USER,
       cart: { create: {} },
     },
   });
 
-  const editorHash = await bcrypt.hash('Editor123!', 10);
   const editor = await prisma.user.create({
     data: {
       email: 'editor@gamersmatrix.com',
-      passwordHash: editorHash,
       name: 'Editor User',
+      authProvider: 'seed',
       role: Role.EDITOR,
       cart: { create: {} },
     },
@@ -205,6 +205,31 @@ async function main() {
     },
   });
 
+  const steam = (appId: string) => ({
+    cover: `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/library_600x900.jpg`,
+    wide: `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`,
+  });
+
+  /** Vertical cover + wide gallery image for known titles. */
+  const coversBySlug: Record<string, { cover: string; wide?: string }> = {
+    'god-of-war-ragnarok': steam('2322010'),
+    'elden-ring': steam('1245620'),
+    'hogwarts-legacy': steam('990080'),
+    'fc-25': steam('2669320'),
+    'cod-black-ops-6': steam('2933080'),
+    'the-last-of-us-part-1': steam('1888930'),
+    'cyberpunk-phantom-liberty': steam('2138330'),
+    'gta-v': steam('271590'),
+    'red-dead-redemption-2': steam('1174180'),
+    'hollow-knight': steam('367520'),
+    'mortal-kombat-1': steam('1971870'),
+    'assassins-creed-shadows': steam('3159330'),
+    'tekken-8': steam('1778820'),
+    'diablo-iv': steam('2344520'),
+    'baldurs-gate-3': steam('1086940'),
+    'resident-evil-4-remake': steam('2050650'),
+  };
+
   const products: SeedProduct[] = [
     {
       title: 'God of War Ragnarök',
@@ -215,7 +240,7 @@ async function main() {
       descriptionEn:
         'Join Kratos and Atreus on an epic journey across the Nine Realms.',
       imageUrl:
-        'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+        '',
       platform: 'Steam',
       priceEGP: 1899,
       originalPrice: 2299,
@@ -237,7 +262,7 @@ async function main() {
         'استكشف عالم Lands Between في تحفة FromSoftware الحائزة على جوائز.',
       descriptionEn: 'Explore the Lands Between in FromSoftware’s acclaimed epic.',
       imageUrl:
-        'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80',
+        '',
       platform: 'Steam',
       priceEGP: 1499,
       featured: true,
@@ -255,7 +280,7 @@ async function main() {
       description:
         'العب كـ Peter Parker و Miles Morales في مغامرة أبطال خارقين لا تُنسى.',
       imageUrl:
-        'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 1999,
       featured: true,
@@ -272,7 +297,7 @@ async function main() {
       description:
         'عش تجربة ساحر في عالم Harry Potter المفتوح — عرض الأسبوع بخصم 35%.',
       imageUrl:
-        'https://images.unsplash.com/photo-1533613220915-609f661a6fe1?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 974,
       originalPrice: 1499,
@@ -292,7 +317,7 @@ async function main() {
       slug: 'fc-25',
       description: 'تجربة كرة القدم الجديدة مع تحديثات اللعب والأندية الرسمية.',
       imageUrl:
-        'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 2199,
       featured: true,
@@ -305,7 +330,7 @@ async function main() {
       description:
         'حملة مشوقة وأطوار متعددة اللاعبين في أحدث إصدارات Call of Duty.',
       imageUrl:
-        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&q=80',
+        '',
       platform: 'Xbox Series X|S',
       priceEGP: 2499,
       featured: true,
@@ -317,7 +342,7 @@ async function main() {
       slug: 'the-last-of-us-part-1',
       description: 'النسخة المعاد صنعها من الكلاسيكية الشهيرة بجودة جيل جديد.',
       imageUrl:
-        'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 1299,
       featured: true,
@@ -329,7 +354,7 @@ async function main() {
       slug: 'psn-500-egp',
       description: 'بطاقة شحن بلايستيشن ستور بقيمة 500 جنيه مصري.',
       imageUrl:
-        'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&q=80',
+        '',
       platform: 'PlayStation',
       priceEGP: 520,
       kind: ProductKind.GIFT_CARD,
@@ -343,7 +368,7 @@ async function main() {
       slug: 'steam-300-egp',
       description: 'بطاقة شحن محفظة Steam بقيمة 300 جنيه.',
       imageUrl:
-        'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&q=80',
+        '',
       platform: 'Steam',
       priceEGP: 315,
       kind: ProductKind.GIFT_CARD,
@@ -357,7 +382,7 @@ async function main() {
       slug: 'cyberpunk-phantom-liberty',
       description: 'الإضافة الرسمية لـ Cyberpunk 2077 مع قصة تجسس جديدة.',
       imageUrl:
-        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 899,
       originalPrice: 1099,
@@ -372,7 +397,7 @@ async function main() {
       description:
         'عيش حياة الإجرام في لوس سانتوس — قصة ملحمة وعالم مفتوح لا ينتهي.',
       imageUrl:
-        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 699,
       originalPrice: 999,
@@ -388,7 +413,7 @@ async function main() {
       description:
         'ملحمة الغرب الأمريكي من Rockstar — قصة آرثر مورغان في عالم مفتوح مذهل.',
       imageUrl:
-        'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 1199,
       originalPrice: 1599,
@@ -403,7 +428,7 @@ async function main() {
       description:
         'مغامرة مترويدفينيا كلاسيكية تحت الأرض في مملكة هالونست المنسية.',
       imageUrl:
-        'https://images.unsplash.com/photo-1551103782-8ab07afd45c1?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 249,
       originalPrice: 399,
@@ -419,7 +444,7 @@ async function main() {
       description:
         'إعادة بناء عالم Mortal Kombat مع قتال أسرع وشخصيات أيقونية.',
       imageUrl:
-        'https://images.unsplash.com/photo-1542751110-97427bbecf20?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 1599,
       featured: true,
@@ -432,7 +457,7 @@ async function main() {
       description:
         'استكشف اليابان الإقطاعية كنينجا وساموراي في أحدث إصدارات Assassin’s Creed.',
       imageUrl:
-        'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 2299,
       featured: true,
@@ -444,7 +469,7 @@ async function main() {
       slug: 'tekken-8',
       description: 'قتال ثلاثي الأبعاد بسرعة جنونية وأطور قصة متعددة الفصول.',
       imageUrl:
-        'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 1799,
       originalPrice: 2199,
@@ -459,7 +484,7 @@ async function main() {
       description:
         'عد إلى سانتواريو في لعبة أكشن RPG مظلمة مع تعاون متعدد اللاعبين.',
       imageUrl:
-        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 1399,
       originalPrice: 1899,
@@ -475,7 +500,7 @@ async function main() {
       description:
         'حائز على لعبة العام — مغامرة تقمص أدوار مبنية على Dungeons & Dragons.',
       imageUrl:
-        'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&q=80',
+        '',
       platform: 'PC',
       priceEGP: 1699,
       featured: true,
@@ -488,7 +513,7 @@ async function main() {
       description:
         'إعادة صنع كلاسيكية الرعب بقيم إنتاجية جيل جديد وتجربة لعب محدّثة.',
       imageUrl:
-        'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&q=80',
+        '',
       platform: 'PlayStation 5',
       priceEGP: 1099,
       originalPrice: 1499,
@@ -503,7 +528,7 @@ async function main() {
       slug: 'xbox-400-egp',
       description: 'بطاقة شحن Xbox بقيمة 400 جنيه مصري.',
       imageUrl:
-        'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&q=80',
+        '',
       platform: 'Xbox',
       priceEGP: 415,
       kind: ProductKind.GIFT_CARD,
@@ -518,7 +543,7 @@ async function main() {
       description:
         'خدمة تفعيل حساب بلايستيشن مع دعم فني حتى اكتمال التفعيل بنجاح.',
       imageUrl:
-        'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&q=80',
+        '',
       platform: 'PlayStation',
       priceEGP: 149,
       kind: ProductKind.SERVICE,
@@ -538,7 +563,7 @@ async function main() {
       slug: 'steam-account-activation',
       description: 'تفعيل حساب Steam أو استعادة الوصول بمساعدة فريق الدعم.',
       imageUrl:
-        'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&q=80',
+        '',
       platform: 'Steam',
       priceEGP: 99,
       kind: ProductKind.SERVICE,
@@ -552,7 +577,7 @@ async function main() {
       slug: 'discord-nitro-monthly',
       description: 'رابط تفعيل Discord Nitro لمدة شهر — تسليم فوري.',
       imageUrl:
-        'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=800&q=80',
+        '',
       platform: 'Discord',
       priceEGP: 189,
       originalPrice: 249,
@@ -575,7 +600,7 @@ async function main() {
       slug: 'discord-nitro-yearly',
       description: 'رابط تفعيل Discord Nitro لمدة سنة.',
       imageUrl:
-        'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=800&q=80',
+        '',
       platform: 'Discord',
       priceEGP: 899,
       kind: ProductKind.SERVICE,
@@ -593,7 +618,7 @@ async function main() {
       slug: 'discord-username-3char',
       description: 'يوزر ديسكورد نادر من 3 أحرف — تسليم اليوزر بعد الدفع.',
       imageUrl:
-        'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=800&q=80',
+        '',
       platform: 'Discord',
       priceEGP: 499,
       kind: ProductKind.SERVICE,
@@ -609,7 +634,7 @@ async function main() {
       slug: 'discord-username-4char',
       description: 'يوزر ديسكورد مميز من 4 أحرف.',
       imageUrl:
-        'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=800&q=80',
+        '',
       platform: 'Discord',
       priceEGP: 249,
       kind: ProductKind.SERVICE,
@@ -623,7 +648,7 @@ async function main() {
       slug: 'instagram-username',
       description: 'يوزر إنستجرام نظيف وجاهز للنقل حسب الشروط.',
       imageUrl:
-        'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800&q=80',
+        '',
       platform: 'Instagram',
       priceEGP: 349,
       kind: ProductKind.SERVICE,
@@ -641,7 +666,7 @@ async function main() {
       description: 'يوزر تيك توك قصير وجاهز للاستخدام.',
       descriptionEn: 'Short TikTok username ready to transfer.',
       imageUrl:
-        'https://images.unsplash.com/photo-1611162616475-46b635cb495f?w=800&q=80',
+        '',
       platform: 'TikTok',
       priceEGP: 299,
       kind: ProductKind.SERVICE,
@@ -658,7 +683,7 @@ async function main() {
       description: 'شحن مباشر لـ Yalla Ludo — تسليم فوري بعد الدفع.',
       descriptionEn: 'Instant Yalla Ludo top-up delivered after payment.',
       imageUrl:
-        'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&q=80',
+        '',
       platform: 'Mobile',
       priceEGP: 105,
       originalPrice: 112,
@@ -679,7 +704,7 @@ async function main() {
       description: 'شحن ألماس Mobile Legends مباشرة إلى حسابك.',
       descriptionEn: 'Direct Mobile Legends diamonds top-up to your account.',
       imageUrl:
-        'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&q=80',
+        '',
       platform: 'Mobile',
       priceEGP: 16,
       kind: ProductKind.TOP_UP,
@@ -698,7 +723,7 @@ async function main() {
       description: 'شحن UC لببجي موبايل بشكل فوري.',
       descriptionEn: 'Instant PUBG Mobile UC top-up.',
       imageUrl:
-        'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?w=800&q=80',
+        '',
       platform: 'Mobile',
       priceEGP: 95,
       originalPrice: 100,
@@ -716,7 +741,7 @@ async function main() {
       description: 'شحن رصيد جواكر مباشرة.',
       descriptionEn: 'Direct Jawaker balance top-up.',
       imageUrl:
-        'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&q=80',
+        '',
       platform: 'Mobile',
       priceEGP: 49,
       originalPrice: 52,
@@ -734,7 +759,7 @@ async function main() {
       description: 'شحن جواهر فري فاير فوري.',
       descriptionEn: 'Instant Free Fire diamonds top-up.',
       imageUrl:
-        'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=800&q=80',
+        '',
       platform: 'Mobile',
       priceEGP: 49,
       kind: ProductKind.TOP_UP,
@@ -750,7 +775,7 @@ async function main() {
       description: 'بطاقة محفظة Steam لمنطقة مصر.',
       descriptionEn: 'Steam wallet code for Egypt region.',
       imageUrl:
-        'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&q=80',
+        '',
       platform: 'Steam',
       priceEGP: 315,
       originalPrice: 330,
@@ -780,6 +805,10 @@ async function main() {
           ? ProductKind.TOP_UP
           : ProductKind.GAME_KEY);
 
+    const art = coversBySlug[product.slug];
+    const imageUrl = product.imageUrl?.trim() || art?.cover || '';
+    const ogImageUrl = art?.wide || null;
+
     const created = await prisma.product.create({
       data: {
         title: product.title,
@@ -787,7 +816,8 @@ async function main() {
         slug: product.slug,
         description: product.description,
         descriptionEn: product.descriptionEn ?? product.description,
-        imageUrl: product.imageUrl,
+        imageUrl,
+        ogImageUrl,
         platform: product.platform,
         priceEGP: new Prisma.Decimal(product.priceEGP),
         originalPrice:
@@ -874,11 +904,10 @@ async function main() {
 
   console.log(`  + ${reviewBodies.length} reviews`);
   console.log('Seed complete.');
-  console.log(
-    `  Admin: mohammed1.nasr.elshreef@gmail.com / Admin123! (${admin.id})`,
-  );
-  console.log(`  Editor: editor@gamersmatrix.com / Editor123! (${editor.id})`);
-  console.log(`  Demo:  demo@gamersmatrix.com / Demo123! (${demo.id})`);
+  console.log(`  Admin profile: ${admin.email} (${admin.id})`);
+  console.log(`  Editor fixture: ${editor.email} (${editor.id})`);
+  console.log(`  Demo fixture: ${demo.email} (${demo.id})`);
+  console.log('  Authentication accounts are managed in Supabase Auth.');
 }
 
 main()

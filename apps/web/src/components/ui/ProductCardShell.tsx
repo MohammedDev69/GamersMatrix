@@ -40,27 +40,28 @@ export function ProductCardShell({
   return (
     <article
       className={cn(
-        "gm-card gm-card-lift group flex flex-col overflow-hidden p-0",
+        "gm-product-card group relative flex flex-col",
         className,
       )}
     >
-      <div className="relative aspect-[3/4] overflow-hidden bg-[var(--gm-surface-raised)]">
+      <div className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-white/[0.04]" aria-hidden />
+      <div className="relative aspect-[3/4] overflow-hidden rounded-t-[var(--gm-radius-card)] bg-[var(--gm-surface-raised)]">
         {artwork}
         {badges ? (
-          <div className="absolute start-2 top-2 flex flex-wrap gap-1">
+          <div className="absolute start-2.5 top-2.5 z-[1] flex flex-wrap gap-1">
             {badges}
           </div>
         ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="min-h-[2.5rem] text-[15px] font-semibold leading-snug text-[var(--gm-text)]">
+      <div className="relative flex flex-1 flex-col gap-2 p-3.5">
+        <div className="min-h-[2.6rem] text-[13px] font-semibold leading-snug text-[var(--gm-text)]">
           {title}
         </div>
         {meta ? (
-          <div className="text-xs text-[var(--gm-text-secondary)]">{meta}</div>
+          <div className="text-[11px] text-[var(--gm-text-secondary)]">{meta}</div>
         ) : null}
-        <div className="mt-auto flex items-end justify-between gap-2 pt-1">
-          <div className="text-lg font-bold tabular-nums text-[var(--gm-text)]">
+        <div className="mt-auto flex items-end justify-between gap-2 border-t border-[var(--gm-border)] pt-2.5">
+          <div className="text-[17px] font-bold tabular-nums text-[var(--gm-text)]">
             {price}
           </div>
           {action}

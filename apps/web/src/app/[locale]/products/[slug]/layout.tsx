@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getProductBySlug } from "@/lib/catalog/repository";
+import { getProductImageUrl } from "@/lib/product-image";
 
 type Props = {
   children: React.ReactNode;
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     product.description?.slice(0, 160) ||
     "Digital game products and top-ups from Gamers Matrix.";
   const canonical = `${siteUrl}/${locale}/products/${product.slug}`;
-  const ogImage = product.ogImageUrl || product.imageUrl;
+  const ogImage = getProductImageUrl(product.ogImageUrl || product.imageUrl);
 
   return {
     title,

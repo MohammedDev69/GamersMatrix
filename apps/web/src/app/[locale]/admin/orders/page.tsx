@@ -6,6 +6,10 @@ import { api, type Order } from "@/lib/api";
 import { formatEGP } from "@/lib/format";
 import { hasPermission } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
+import {
+  AdminListState,
+  AdminTableSkeleton,
+} from "@/components/admin/AdminListState";
 
 type AdminOrder = Order & {
   orderNumber?: string;
@@ -22,17 +26,23 @@ export default function AdminOrdersPage() {
   const [selected, setSelected] = useState<AdminOrder | null>(null);
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  async function load(search = q) {
-    const data = await api.get<AdminOrder[]>(
-      `/admin/orders?q=${encodeURIComponent(search)}`,
-    );
-    setOrders(data);
+  async function load(search = q, soft = false) {
+    if (!soft) setLoading(true);
+    try {
+      const data = await api.get<AdminOrder[]>(
+        `/admin/orders?q=${encodeURIComponent(search)}`,
+      );
+      setOrders(data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     const t = setTimeout(() => {
-      load().catch((e) =>
+      load(q, orders.length > 0).catch((e) =>
         setMsg(e instanceof Error ? e.message : "فشل التحميل"),
       );
     }, 250);
@@ -56,7 +66,7 @@ export default function AdminOrdersPage() {
       });
       setSelected(order);
       setMsg(`تم تحديث الحالة إلى ${status}`);
-      await load();
+      await load(q, true);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "فشل التحديث");
     }
@@ -75,7 +85,7 @@ export default function AdminOrdersPage() {
           : result.reason || "لا حاجة لإعادة التسليم",
       );
       await openOrder(id);
-      await load();
+      await load(q, true);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "فشل إعادة التسليم");
     }
@@ -84,7 +94,8 @@ export default function AdminOrdersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm text-[var(--gm-muted)]">
+        <h1 className="text-2xl font-extrabold text-white">الطلبات</h1>
+        <p className="mt-1 text-sm text-[var(--gm-muted)]">
           المفاتيح الرقمية لا تُعرض في الجداول العامة. أسرار الدفع محذوفة.
         </p>
       </div>
@@ -98,52 +109,55 @@ export default function AdminOrdersPage() {
 
       {msg ? <p className="text-sm text-[var(--gm-accent-bright)]">{msg}</p> : null}
 
-      <div className="overflow-x-auto rounded-[var(--gm-radius-card)] border border-[var(--gm-border)]">
-        <table className="w-full min-w-[800px] text-sm">
-          <thead className="bg-[var(--gm-surface)] text-[var(--gm-muted)]">
-            <tr>
-              <th className="px-3 py-3 text-start font-medium">الطلب</th>
-              <th className="px-3 py-3 text-start font-medium">العميل</th>
-              <th className="px-3 py-3 text-start font-medium">الإجمالي</th>
-              <th className="px-3 py-3 text-start font-medium">الدفع</th>
-              <th className="px-3 py-3 text-start font-medium">التسليم</th>
-              <th className="px-3 py-3 text-start font-medium">التاريخ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((o) => (
-              <tr
-                key={o.id}
-                className="cursor-pointer border-t border-[var(--gm-border)] hover:bg-[var(--gm-surface)]"
-                onClick={() => openOrder(o.id)}
-              >
-                <td className="px-3 py-3 font-mono text-xs text-white">
-                  {o.orderNumber || `#${o.id.slice(-8)}`}
-                </td>
-                <td className="px-3 py-3 text-[var(--gm-muted)]">
-                  {o.user?.name || "—"}
-                  <br />
-                  <span className="text-xs">{o.user?.email}</span>
-                </td>
-                <td className="px-3 py-3 text-white">{formatEGP(o.totalEGP)}</td>
-                <td className="px-3 py-3 text-[var(--gm-accent-bright)]">
-                  {o.status}
-                  {o.payment?.status ? ` / ${o.payment.status}` : ""}
-                </td>
-                <td className="px-3 py-3">{o.fulfillmentStatus || "—"}</td>
-                <td className="px-3 py-3 text-xs text-[var(--gm-muted)]">
-                  {new Date(o.createdAt).toLocaleString("ar-EG")}
-                </td>
+      <AdminListState
+        loading={loading}
+        empty={orders.length === 0}
+        emptyTitle="لا توجد طلبات"
+        emptyDescription="ستظهر الطلبات هنا فور إنشاء أول عملية شراء."
+        skeleton={<AdminTableSkeleton cols={6} rows={8} />}
+      >
+        <div className="overflow-x-auto rounded-[var(--gm-radius-card)] border border-[var(--gm-border)]">
+          <table className="w-full min-w-[800px] text-sm">
+            <thead className="bg-[var(--gm-surface)] text-[var(--gm-muted)]">
+              <tr>
+                <th className="px-3 py-3 text-start font-medium">الطلب</th>
+                <th className="px-3 py-3 text-start font-medium">العميل</th>
+                <th className="px-3 py-3 text-start font-medium">الإجمالي</th>
+                <th className="px-3 py-3 text-start font-medium">الدفع</th>
+                <th className="px-3 py-3 text-start font-medium">التسليم</th>
+                <th className="px-3 py-3 text-start font-medium">التاريخ</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {orders.length === 0 ? (
-          <p className="p-6 text-center text-sm text-[var(--gm-muted)]">
-            لا توجد طلبات
-          </p>
-        ) : null}
-      </div>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr
+                  key={o.id}
+                  className="cursor-pointer border-t border-[var(--gm-border)] hover:bg-[var(--gm-surface)]"
+                  onClick={() => openOrder(o.id)}
+                >
+                  <td className="px-3 py-3 font-mono text-xs text-white">
+                    {o.orderNumber || `#${o.id.slice(-8)}`}
+                  </td>
+                  <td className="px-3 py-3 text-[var(--gm-muted)]">
+                    {o.user?.name || "—"}
+                    <br />
+                    <span className="text-xs">{o.user?.email}</span>
+                  </td>
+                  <td className="px-3 py-3 text-white">{formatEGP(o.totalEGP)}</td>
+                  <td className="px-3 py-3 text-[var(--gm-accent-bright)]">
+                    {o.status}
+                    {o.payment?.status ? ` / ${o.payment.status}` : ""}
+                  </td>
+                  <td className="px-3 py-3">{o.fulfillmentStatus || "—"}</td>
+                  <td className="px-3 py-3 text-xs text-[var(--gm-muted)]">
+                    {new Date(o.createdAt).toLocaleString("ar-EG")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </AdminListState>
 
       {selected ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">

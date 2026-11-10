@@ -5,6 +5,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { api, type Category, type Product, type ProductKind } from "@/lib/api";
 import { formatEGP } from "@/lib/format";
+import { getProductImageUrl } from "@/lib/product-image";
+import {
+  AdminListState,
+  AdminTableSkeleton,
+} from "@/components/admin/AdminListState";
 
 type AdminProduct = Product & {
   stock?: number;
@@ -36,8 +41,7 @@ const emptyForm = (categoryId = ""): ProductForm => ({
   title: "",
   slug: "",
   description: "",
-  imageUrl:
-    "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&h=800&fit=crop",
+  imageUrl: "",
   platform: "PlayStation 5",
   priceEGP: 100,
   originalPrice: "",
@@ -108,36 +112,45 @@ export default function AdminProductsPage() {
   const [total, setTotal] = useState(0);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ProductForm>(emptyForm());
 
-  async function load() {
-    const [p, c] = await Promise.all([
-      api.get<{ items: AdminProduct[]; total: number } | AdminProduct[]>(
-        `/admin/products?page=${page}&pageSize=20&q=${encodeURIComponent(query)}&status=${encodeURIComponent(statusFilter)}`,
-      ),
-      api.get<Category[]>("/admin/categories"),
-    ]);
-    if (Array.isArray(p)) {
-      setProducts(p);
-      setTotal(p.length);
-    } else {
-      setProducts(p.items);
-      setTotal(p.total);
+  async function load(opts?: { soft?: boolean }) {
+    if (!opts?.soft) setLoading(true);
+    try {
+      const [p, c] = await Promise.all([
+        api.get<{ items: AdminProduct[]; total: number } | AdminProduct[]>(
+          `/admin/products?page=${page}&pageSize=20&q=${encodeURIComponent(query)}&status=${encodeURIComponent(statusFilter)}`,
+        ),
+        api.get<Category[]>("/admin/categories"),
+      ]);
+      if (Array.isArray(p)) {
+        setProducts(p);
+        setTotal(p.length);
+      } else {
+        setProducts(p.items);
+        setTotal(p.total);
+      }
+      setCategories(c);
+      return c;
+    } finally {
+      setLoading(false);
     }
-    setCategories(c);
-    return c;
   }
 
   useEffect(() => {
     load().catch((e) => setMsg(e instanceof Error ? e.message : "فشل التحميل"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       setPage(1);
-      load().catch((e) => setMsg(e instanceof Error ? e.message : "فشل التحميل"));
+      load({ soft: products.length > 0 }).catch((e) =>
+        setMsg(e instanceof Error ? e.message : "فشل التحميل"),
+      );
     }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -264,84 +277,91 @@ export default function AdminProductsPage() {
 
       {msg ? <p className="text-sm text-[var(--gm-accent-bright)]">{msg}</p> : null}
 
-      <div className="overflow-x-auto rounded-[var(--gm-radius-card)] border border-[var(--gm-border)]">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="bg-[var(--gm-surface)] text-[var(--gm-muted)]">
-            <tr>
-              <th className="px-3 py-3 text-start font-medium">المنتج</th>
-              <th className="px-3 py-3 text-start font-medium">النوع</th>
-              <th className="px-3 py-3 text-start font-medium">السعر</th>
-              <th className="px-3 py-3 text-start font-medium">المخزون</th>
-              <th className="px-3 py-3 text-start font-medium">الحالة</th>
-              <th className="px-3 py-3 text-start font-medium">إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => (
-              <tr key={p.id} className="border-t border-[var(--gm-border)]">
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="relative h-12 w-9 shrink-0 overflow-hidden rounded bg-[var(--gm-surface)]">
-                      <Image src={p.imageUrl} alt="" fill className="object-cover" sizes="36px" />
-                    </span>
-                    <div>
-                      <p className="font-semibold text-white">{p.title}</p>
-                      <p className="text-xs text-[var(--gm-muted)]">
-                        {p.platform} · {p.category?.name || p.categoryId}
-                        {p.publicationStatus
-                          ? ` · ${p.publicationStatus}`
-                          : ""}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-3 py-3 text-[var(--gm-muted)]">{p.kind || "GAME_KEY"}</td>
-                <td className="px-3 py-3 text-white">{formatEGP(p.priceEGP)}</td>
-                <td className="px-3 py-3 text-[var(--gm-muted)]">
-                  {p.stock ?? 0}/{p.keysTotal ?? 0}
-                </td>
-                <td className="px-3 py-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleActive(p)}
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      p.active
-                        ? "bg-[rgba(74,222,128,0.15)] text-[var(--gm-success)]"
-                        : "bg-[rgba(248,113,113,0.15)] text-[var(--gm-danger)]"
-                    }`}
-                  >
-                    {p.active ? "نشط" : "متوقف"}
-                  </button>
-                </td>
-                <td className="px-3 py-3">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(p)}
-                      className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-white"
-                      aria-label="تعديل"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => onDelete(p.id, p.title)}
-                      className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-[var(--gm-danger)]"
-                      aria-label="حذف"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
+      <AdminListState
+        loading={loading}
+        empty={filtered.length === 0}
+        emptyTitle="لا توجد منتجات"
+        emptyDescription="أضف منتجاً جديداً أو غيّر فلتر البحث / حالة النشر."
+        skeleton={<AdminTableSkeleton cols={6} rows={8} />}
+      >
+        <div className="overflow-x-auto rounded-[var(--gm-radius-card)] border border-[var(--gm-border)]">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead className="bg-[var(--gm-surface)] text-[var(--gm-muted)]">
+              <tr>
+                <th className="px-3 py-3 text-start font-medium">المنتج</th>
+                <th className="px-3 py-3 text-start font-medium">النوع</th>
+                <th className="px-3 py-3 text-start font-medium">السعر</th>
+                <th className="px-3 py-3 text-start font-medium">المخزون</th>
+                <th className="px-3 py-3 text-start font-medium">الحالة</th>
+                <th className="px-3 py-3 text-start font-medium">إجراءات</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 ? (
-          <p className="p-6 text-center text-sm text-[var(--gm-muted)]">لا توجد منتجات</p>
-        ) : null}
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((p) => (
+                <tr key={p.id} className="border-t border-[var(--gm-border)]">
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      {getProductImageUrl(p.imageUrl) ? (
+                        <span className="relative h-12 w-9 shrink-0 overflow-hidden rounded bg-[var(--gm-surface)]">
+                          <Image src={getProductImageUrl(p.imageUrl)!} alt="" fill className="object-cover" sizes="36px" />
+                        </span>
+                      ) : null}
+                      <div>
+                        <p className="font-semibold text-white">{p.title}</p>
+                        <p className="text-xs text-[var(--gm-muted)]">
+                          {p.platform} · {p.category?.name || p.categoryId}
+                          {p.publicationStatus
+                            ? ` · ${p.publicationStatus}`
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-[var(--gm-muted)]">{p.kind || "GAME_KEY"}</td>
+                  <td className="px-3 py-3 text-white">{formatEGP(p.priceEGP)}</td>
+                  <td className="px-3 py-3 text-[var(--gm-muted)]">
+                    {p.stock ?? 0}/{p.keysTotal ?? 0}
+                  </td>
+                  <td className="px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(p)}
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        p.active
+                          ? "bg-[rgba(74,222,128,0.15)] text-[var(--gm-success)]"
+                          : "bg-[rgba(248,113,113,0.15)] text-[var(--gm-danger)]"
+                      }`}
+                    >
+                      {p.active ? "نشط" : "متوقف"}
+                    </button>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(p)}
+                        className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-white"
+                        aria-label="تعديل"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onDelete(p.id, p.title)}
+                        className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-[var(--gm-danger)]"
+                        aria-label="حذف"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </AdminListState>
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4">
@@ -400,9 +420,9 @@ export default function AdminProductsPage() {
                   onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
                   required
                 />
-                {form.imageUrl ? (
+                {getProductImageUrl(form.imageUrl) ? (
                   <span className="relative mt-2 block h-40 w-28 overflow-hidden rounded border border-[var(--gm-border)]">
-                    <Image src={form.imageUrl} alt="" fill className="object-cover" sizes="112px" />
+                    <Image src={getProductImageUrl(form.imageUrl)!} alt="" fill className="object-cover" sizes="112px" />
                   </span>
                 ) : null}
               </label>

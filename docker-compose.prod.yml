@@ -1,0 +1,71 @@
+# Production stack: API + Redis.
+# The web (Next.js) app and Postgres (Supabase) live outside this stack:
+# see docs/PRODUCTION.md. Copy to your server and update .env values first.
+#
+#   docker compose -f docker-compose.prod.yml --env-file apps/api/.env up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: gamersmatrix-redis-prod
+    restart: unless-stopped
+    # No public port on purpose — only the API container reaches Redis over
+    # the internal network. For remote access use binding + ACL password.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - "900 1"
+      - --save
+      - "300 10"
+      - --slowlog-log-slower-than
+      - "10000"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: gamersmatrix-api-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001" # bind to localhost; Nginx/Caddy terminates TLS publicly
+    env_file:
+      - apps/api/.env
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+
+volumes:
+  redis_data:

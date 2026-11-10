@@ -2,10 +2,14 @@
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { Logo } from "@/components/brand/Logo";
 
 const PAYMENT_METHODS = ["Visa", "Mastercard", "Paymob"];
 
 const WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP?.replace(/[^\d]/g, "") || "";
+
+const LINK_CLASS =
+  "text-sm font-normal text-[var(--gm-text-secondary)] transition-colors duration-200 hover:text-[var(--gm-violet-300)]";
 
 export function Footer() {
   const t = useTranslations("Footer");
@@ -24,7 +28,6 @@ export function Footer() {
     { href: "/help", label: t("help") },
     { href: "/contact", label: t("contact") },
     { href: "/support", label: tNav("support") },
-    { href: "/wishlist", label: tNav("wishlist") },
   ];
 
   const legalLinks = [
@@ -33,20 +36,24 @@ export function Footer() {
     { href: "/refund-policy", label: t("refund") },
   ];
 
+  const columns: Array<{ title: string; links: Array<{ href: string; label: string }> }> = [
+    { title: t("shop"), links: shopLinks },
+    { title: t("support"), links: supportLinks },
+    { title: t("legal"), links: legalLinks },
+  ];
+
   return (
-    <footer className="gm-footer mt-16">
-      <div className="gm-container py-12 md:py-14">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="gm-footer mt-16 border-t border-[var(--gm-border)]">
+      <div className="gm-container py-10 md:py-12">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
-            <Link
-              href="/"
-              className="gm-display text-2xl font-extrabold text-[var(--gm-text)]"
-            >
-              <span>GAMERS </span>
-              <span className="text-[var(--gm-violet-400)]">MATRIX</span>
-              <span className="sr-only">{tBrand("name")}</span>
+            <Link href="/" className="inline-flex items-center gap-2.5" aria-label="Gamers Matrix">
+              <Logo size={36} />
+              <span dir="ltr" className="text-sm font-medium tracking-wide text-[var(--gm-text-secondary)]">
+                Gamers Matrix
+              </span>
             </Link>
-            <p className="mt-4 max-w-xs text-sm leading-7 text-[var(--gm-text-secondary)]">
+            <p className="mt-3 max-w-xs text-sm font-normal leading-6 text-[var(--gm-text-muted)]">
               {tBrand("tagline")}
             </p>
             {WHATSAPP ? (
@@ -54,85 +61,40 @@ export function Footer() {
                 href={`https://wa.me/${WHATSAPP}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex text-sm font-medium text-[var(--gm-violet-300)] hover:underline"
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--gm-border)] px-3.5 py-1.5 text-xs font-medium text-[var(--gm-text-secondary)] transition-colors hover:border-[var(--gm-violet-500)] hover:text-[var(--gm-violet-300)]"
               >
                 WhatsApp
               </a>
             ) : null}
           </div>
 
-          <div>
-            <h3 className="mb-4 text-base font-semibold text-[var(--gm-text)]">
-              {t("shop")}
-            </h3>
-            <ul className="space-y-2.5">
-              {shopLinks.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-[var(--gm-text-secondary)] transition hover:text-[var(--gm-text)]"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="mb-4 text-base font-semibold text-[var(--gm-text)]">
-              {t("support")}
-            </h3>
-            <ul className="space-y-2.5">
-              {supportLinks.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-[var(--gm-text-secondary)] transition hover:text-[var(--gm-text)]"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="mb-4 text-base font-semibold text-[var(--gm-text)]">
-              {t("legal")}
-            </h3>
-            <ul className="space-y-2.5">
-              {legalLinks.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-[var(--gm-text-secondary)] transition hover:text-[var(--gm-text)]"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-              <li>
-                <Link
-                  href="/account"
-                  className="text-sm text-[var(--gm-text-secondary)] transition hover:text-[var(--gm-text)]"
-                >
-                  {tNav("account")}
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {columns.map((col) => (
+            <div key={col.title}>
+              <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-[var(--gm-text-muted)]">
+                {col.title}
+              </h3>
+              <ul className="space-y-2">
+                {col.links.map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href} className={LINK_CLASS}>
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        <div className="mt-10 flex flex-col gap-4 border-t border-[var(--gm-border)] pt-7 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-[var(--gm-text-muted)]">
+        <div className="mt-8 flex flex-col gap-3 border-t border-[var(--gm-border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-normal text-[var(--gm-text-muted)]">
             © {year} Gamers Matrix · {t("rights")}
           </p>
-          <ul className="flex flex-wrap items-center gap-2">
+          <ul className="flex flex-wrap items-center gap-1.5">
             {PAYMENT_METHODS.map((method) => (
               <li
                 key={method}
-                className="rounded border border-[var(--gm-border)] bg-[var(--gm-surface)] px-2.5 py-1 text-[11px] font-medium tracking-wide text-[var(--gm-text-muted)]"
+                className="rounded-md border border-[var(--gm-border)] px-2.5 py-0.5 text-[10px] font-normal tracking-wide text-[var(--gm-text-muted)]"
                 dir="ltr"
               >
                 {method}

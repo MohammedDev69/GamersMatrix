@@ -8,7 +8,7 @@
 GamersMatrix/
   apps/web   # واجهة المتجر (Next.js 15)
   apps/api   # واجهة برمجية (NestJS + Prisma)
-  docker-compose.yml  # PostgreSQL اختياري للإنتاج
+  docs/SUPABASE.md  # إعداد PostgreSQL وAuth على Supabase
 ```
 
 ## المتطلبات
@@ -16,7 +16,9 @@ GamersMatrix/
 - Node.js 20+
 - npm
 
-قاعدة البيانات الافتراضية للتطوير: **SQLite** (`apps/api/prisma/dev.db`).
+قاعدة البيانات: **Supabase PostgreSQL** عبر Prisma. المصادقة عبر **Supabase Auth**
+(البريد الإلكتروني، Google، Discord). راجع `docs/SUPABASE.md` للإعداد والنقل من
+SQLite القديم.
 
 ## التشغيل السريع
 
@@ -43,23 +45,23 @@ npm run build
 npm run start
 ```
 
+الدليل الكامل للنشر في الإنتاج — بما فيه تعليم **Redis** بالكامل وكل ميزات الموقع —
+موجود في [`docs/PRODUCTION.md`](docs/PRODUCTION.md).
+
 قبل إعلان جاهزية الإنتاج تأكد من:
 
-1. `JWT_SECRET` بطول ≥ 32 حرفاً و`NODE_ENV=production`
-2. ترحيل قاعدة البيانات (`npm run db:migrate`) وبيانات أولية حسب الحاجة
+1. ضبط متغيرات Supabase ووصلي `DATABASE_URL` و`DIRECT_URL`
+2. نشر baseline قاعدة البيانات (`npm run db:deploy`) ونقل البيانات حسب الحاجة
 3. مفاتيح Paymob كاملة بما فيها `PAYMOB_HMAC_SECRET` إن كان الدفع حياً
-4. `FRONTEND_URL` و`API_PUBLIC_URL` و`NEXT_PUBLIC_SITE_URL` و`NEXT_PUBLIC_API_URL` تشير لأصول الإنتاج
+4. `FRONTEND_URL` و`API_PUBLIC_URL` و`NEXT_PUBLIC_SITE_URL` و`NEXT_PUBLIC_API_URL` تشير لأصول الإنتاج — `TRUST_PROXY=true` إذا ال API خلف Nginx/CDN
 5. مزوّد بريد حقيقي إن أردت إشعارات؛ بدون SMTP يبقى الوضع preview فقط (معطّل في الإنتاج)
-6. عدم الاعتماد على بيانات الـ fixture التجريبية (مُعطّلة تلقائياً عند `NODE_ENV=production`)
+6. تفعيل Google وDiscord وإضافة Redirect URLs في Supabase Dashboard
 
-## حسابات تجريبية (بعد seed)
+## الحسابات والصلاحيات
 
-| الدور | البريد | كلمة المرور |
-|-------|--------|-------------|
-| Admin | admin@gamersmatrix.com | Admin123! |
-| User | demo@gamersmatrix.com | Demo123! |
-
-غيّر كلمات المرور فوراً في أي بيئة مشتركة أو إنتاج.
+الحسابات تُنشأ وتُدار في Supabase Auth. البريد الموجود في
+`SUPABASE_ADMIN_EMAILS` يحصل على دور الأدمن عند أول تسجيل دخول؛ ولا توجد كلمات
+مرور تجريبية داخل قاعدة بيانات المتجر.
 
 ## الدفع (Paymob)
 
@@ -78,7 +80,7 @@ Webhook HMAC: يُرفض التوقيع الفارغ في الإنتاج أو ع
 
 ## الأمان (ملخص)
 
-- JWT عبر `Authorization: Bearer` (محلي في المتصفح) — حماية الـ API على الخادم عبر Roles/Permissions
+- Supabase JWT عبر `Authorization: Bearer` مع تحقق JWKS — وحماية الـ API عبر Roles/Permissions
 - Helmet على الـ API؛ رؤوس أمان أساسية على الويب
 - رفع الوسائط: تحقق magic-bytes + حد حجم؛ مجلد `uploads/` في `.gitignore`
 - حساب/إدارة: `Cache-Control: private, no-store`
@@ -92,9 +94,7 @@ Webhook HMAC: يُرفض التوقيع الفارغ في الإنتاج أو ع
 - `/admin` لوحة الإدارة
 - `/robots.txt` و`/sitemap.xml`
 
-## PostgreSQL (اختياري)
+## Supabase
 
-1. شغّل `docker compose up -d`
-2. غيّر في `schema.prisma` الـ provider إلى `postgresql`
-3. حدّث `DATABASE_URL` في `.env`
-4. أعد `prisma migrate dev`
+الدليل الكامل لإنشاء المشروع، نشر migrations، نقل SQLite، وتفعيل Google وDiscord:
+`docs/SUPABASE.md`.

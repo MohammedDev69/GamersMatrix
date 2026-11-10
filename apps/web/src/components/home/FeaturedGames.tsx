@@ -3,21 +3,24 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, FALLBACK_PRODUCTS, type Product } from "@/lib/api";
+import { api, type Product } from "@/lib/api";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Reveal } from "@/components/ui/Reveal";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export function FeaturedGames() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api
       .get<Product[]>("/products?featured=true")
-      .then((data) =>
-        setProducts(data.length ? data : FALLBACK_PRODUCTS.filter((p) => p.featured)),
-      )
-      .catch(() => setProducts(FALLBACK_PRODUCTS.filter((p) => p.featured)));
+      .then((data) => setProducts(data))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
   }, []);
+
+  if (!loading && products.length === 0) return null;
 
   return (
     <Reveal as="section" className="gm-stagger space-y-6">
@@ -37,9 +40,16 @@ export function FeaturedGames() {
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        {products.slice(0, 12).map((p, i) => (
-          <ProductCard key={p.id} product={p} index={i} />
-        ))}
+        {loading
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton
+                key={i}
+                className="aspect-[3/4.4] rounded-[var(--gm-radius-card)]"
+              />
+            ))
+          : products.slice(0, 12).map((p, i) => (
+              <ProductCard key={p.id} product={p} index={i} />
+            ))}
       </div>
     </Reveal>
   );

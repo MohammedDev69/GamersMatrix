@@ -3,35 +3,24 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, FALLBACK_PRODUCTS, type Product } from "@/lib/api";
+import { api, type Product } from "@/lib/api";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Reveal } from "@/components/ui/Reveal";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export function BestSellers() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api
       .get<Product[]>("/products/bestsellers?limit=10")
-      .then((data) =>
-        setProducts(
-          data.length
-            ? data
-            : [...FALLBACK_PRODUCTS].sort(
-                (a, b) => (b.soldCount ?? 0) - (a.soldCount ?? 0),
-              ).slice(0, 10),
-        ),
-      )
-      .catch(() =>
-        setProducts(
-          [...FALLBACK_PRODUCTS]
-            .sort((a, b) => (b.soldCount ?? 0) - (a.soldCount ?? 0))
-            .slice(0, 10),
-        ),
-      );
+      .then((data) => setProducts(data.slice(0, 10)))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (!products.length) return null;
+  if (!loading && !products.length) return null;
 
   return (
     <Reveal as="section" className="gm-stagger space-y-6">
@@ -51,9 +40,16 @@ export function BestSellers() {
         </Link>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {products.slice(0, 10).map((p, i) => (
-          <ProductCard key={p.id} product={p} index={i} />
-        ))}
+        {loading
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton
+                key={i}
+                className="aspect-[3/4.4] rounded-[var(--gm-radius-card)]"
+              />
+            ))
+          : products.slice(0, 10).map((p, i) => (
+              <ProductCard key={p.id} product={p} index={i} />
+            ))}
       </div>
     </Reveal>
   );

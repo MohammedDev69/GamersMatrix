@@ -4,19 +4,18 @@ import { FormEvent, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { StoreShell } from "@/components/layout/StoreShell";
-import { api, setToken, type Order, type User } from "@/lib/api";
+import { api, type Order, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCurrency } from "@/lib/currency";
 import { canAccessAdmin } from "@/lib/permissions";
 
 export default function AccountPage() {
   const t = useTranslations("Account");
-  const { user, loading, logout, refresh } = useAuth();
+  const { user, loading, logout, refresh, updatePassword } = useAuth();
   const { formatPrice } = useCurrency();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [name, setName] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
@@ -57,17 +56,8 @@ export default function AccountPage() {
     setError("");
     setMsg("");
     try {
-      const res = await api.post<{
-        ok: boolean;
-        accessToken: string;
-        user: User;
-      }>("/auth/change-password", {
-        currentPassword,
-        newPassword,
-      });
-      if (res.accessToken) setToken(res.accessToken);
+      await updatePassword(newPassword);
       await refresh();
-      setCurrentPassword("");
       setNewPassword("");
       setMsg(t("passwordChanged"));
     } catch (err) {
@@ -104,7 +94,7 @@ export default function AccountPage() {
             <button
               type="button"
               onClick={() => {
-                logout();
+                void logout();
                 router.push("/");
               }}
               className="gm-btn gm-btn-outline"
@@ -149,18 +139,6 @@ export default function AccountPage() {
         >
           <h2 className="font-bold text-white">{t("security")}</h2>
           <p className="text-xs text-[var(--gm-muted)]">{t("passwordHint")}</p>
-          <label className="block text-xs text-[var(--gm-muted)]">
-            {t("currentPassword")}
-            <input
-              type="password"
-              className="gm-input mt-1"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete="current-password"
-            />
-          </label>
           <label className="block text-xs text-[var(--gm-muted)]">
             {t("newPassword")}
             <input

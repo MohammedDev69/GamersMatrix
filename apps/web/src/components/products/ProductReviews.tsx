@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -30,8 +30,33 @@ export function ProductReviews({ productId }: { productId: string }) {
   const [body, setBody] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [nearViewport, setNearViewport] = useState(false);
+
+  // Lazy loading: the reviews section sits below the fold, so the fetch
+  // starts only when the visitor scrolls close to it.
+  useEffect(() => {
+    if (nearViewport) return;
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setNearViewport(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nearViewport]);
 
   useEffect(() => {
+    if (!nearViewport) return;
     let cancelled = false;
     api
       .get<ReviewsPayload>(`/reviews/product/${productId}`)
@@ -46,7 +71,7 @@ export function ProductReviews({ productId }: { productId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, nearViewport]);
 
   async function load() {
     const res = await api.get<ReviewsPayload>(`/reviews/product/${productId}`);
@@ -72,7 +97,10 @@ export function ProductReviews({ productId }: { productId: string }) {
   }
 
   return (
-    <section className="mt-10 space-y-4 border-t border-[var(--gm-border)] pt-8">
+    <section
+      ref={sectionRef}
+      className="mt-10 space-y-4 border-t border-[var(--gm-border)] pt-8"
+    >
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-bold text-white">{t("reviews")}</h2>
         {data && data.count > 0 ? (

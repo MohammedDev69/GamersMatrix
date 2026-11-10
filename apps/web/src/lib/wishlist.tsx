@@ -64,22 +64,6 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     async (productId: string) => {
       if (!user) return "login" as const;
 
-      // Fixture products are local-only until Phase 3 data replaces them.
-      if (productId.startsWith("demo-")) {
-        if (productIds.has(productId)) {
-          setItems((prev) => prev.filter((r) => r.product.id !== productId));
-          return "removed" as const;
-        }
-        const { FIXTURE_PRODUCTS } = await import("@/lib/catalog/fixtures");
-        const product = FIXTURE_PRODUCTS.find((p) => p.id === productId);
-        if (!product) return "removed" as const;
-        setItems((prev) => [
-          ...prev,
-          { id: `local-${productId}`, product },
-        ]);
-        return "added" as const;
-      }
-
       if (productIds.has(productId)) {
         await api.delete(`/wishlist/${productId}`);
         setItems((prev) => prev.filter((r) => r.product.id !== productId));

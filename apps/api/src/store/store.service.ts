@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisCacheService } from '../cache/redis-cache.service';
+import { CacheTTL, storePublicKey } from '../cache/cache-keys';
 
 @Injectable()
 export class StoreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly cache: RedisCacheService,
   ) {}
 
   /**
@@ -14,6 +17,14 @@ export class StoreService {
    * Never exposes payment/SMTP secrets.
    */
   async getPublicConfig() {
+    return this.cache.getOrSet(
+      storePublicKey(),
+      CacheTTL.STORE_PUBLIC,
+      () => this.loadPublicConfig(),
+    );
+  }
+
+  private async loadPublicConfig() {
     const settings = await this.prisma.storeSettings.upsert({
       where: { id: 'default' },
       create: { id: 'default' },

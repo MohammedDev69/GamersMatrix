@@ -1,67 +1,55 @@
 "use client";
 
 import {
-  type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
-  useEffect,
-  useRef,
   useState,
 } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+
+type RevealTag = "div" | "section" | "article" | "ul" | "li";
 
 type RevealProps = {
   children: ReactNode;
   className?: string;
   delayMs?: number;
-  as?: "div" | "section" | "article" | "ul" | "li";
+  as?: RevealTag;
 } & HTMLAttributes<HTMLElement>;
+
+const MOTION_TAGS = {
+  div: motion.div,
+  section: motion.section,
+  article: motion.article,
+  ul: motion.ul,
+  li: motion.li,
+};
 
 export function Reveal({
   children,
   className = "",
   delayMs = 0,
-  as: Tag = "div",
+  as = "div",
   ...rest
 }: RevealProps) {
-  const ref = useRef<HTMLElement | null>(null);
+  const reduceMotion = useReducedMotion();
   const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setVisible(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" },
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  const style: CSSProperties = {
-    ...(delayMs ? { transitionDelay: `${delayMs}ms` } : null),
-    ...(rest.style as CSSProperties | undefined),
-  };
+  const MotionTag = MOTION_TAGS[as];
 
   return (
-    <Tag
-      ref={ref as never}
-      className={`gm-reveal ${visible ? "is-visible" : ""} ${className}`}
-      style={style}
-      {...rest}
+    <MotionTag
+      className={`gm-reveal ${visible || reduceMotion ? "is-visible" : ""} ${className}`}
+      initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.12, margin: "0px 0px -40px 0px" }}
+      transition={{
+        duration: reduceMotion ? 0 : 0.5,
+        delay: reduceMotion ? 0 : delayMs / 1000,
+        ease: [0.16, 1, 0.3, 1],
+      }}
+      onViewportEnter={() => setVisible(true)}
+      {...(rest as Record<string, unknown>)}
     >
       {children}
-    </Tag>
+    </MotionTag>
   );
 }

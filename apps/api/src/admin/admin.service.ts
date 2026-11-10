@@ -31,6 +31,7 @@ import {
 } from './dto/admin-extra.dto';
 import { TransitionPublicationDto } from './dto/publication.dto';
 import { PaymentsService } from '../payments/payments.service';
+import { RedisCacheService } from '../cache/redis-cache.service';
 
 function parseKind(value?: string | null): ProductKind | undefined {
   if (!value) return undefined;
@@ -47,7 +48,12 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly payments: PaymentsService,
+    private readonly cache: RedisCacheService,
   ) {}
+
+  private async bustCatalogCache() {
+    await this.cache.invalidateCatalog();
+  }
 
   async getStats() {
     const [
@@ -186,7 +192,7 @@ export class AdminService {
 
   async createCategory(dto: CreateCategoryDto) {
     try {
-      return await this.prisma.category.create({
+      const created = await this.prisma.category.create({
         data: {
           name: dto.name,
           slug: dto.slug,
@@ -196,6 +202,8 @@ export class AdminService {
           visible: dto.visible ?? true,
         },
       });
+      await this.bustCatalogCache();
+      return created;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -212,7 +220,7 @@ export class AdminService {
     if (!existing) throw new NotFoundException('Category not found');
 
     try {
-      return await this.prisma.category.update({
+      const updated = await this.prisma.category.update({
         where: { id },
         data: {
           name: dto.name,
@@ -223,6 +231,8 @@ export class AdminService {
           visible: dto.visible,
         },
       });
+      await this.bustCatalogCache();
+      return updated;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -246,6 +256,7 @@ export class AdminService {
       );
     }
     await this.prisma.category.delete({ where: { id } });
+    await this.bustCatalogCache();
     return { deleted: true, id };
   }
 
@@ -308,7 +319,7 @@ export class AdminService {
     if (opts?.status) where.publicationStatus = opts.status;
     if (opts?.kind) where.kind = opts.kind;
 
-    const [total, products] = await this.prisma.$transaction([
+    const [total, products] = await Promise.all([
       this.prisma.product.count({ where }),
       this.prisma.product.findMany({
         where,
@@ -323,23 +334,29 @@ export class AdminService {
       }),
     ]);
 
-    const items = await Promise.all(
-      products.map(async (product) => {
-        const available = await this.prisma.productKey.count({
-          where: { productId: product.id, status: 'AVAILABLE' },
-        });
-        return {
-          ...serializeAdminProduct(product),
-          keysTotal: product._count.keys,
-          mediaCount: product._count.media,
-          stock: available,
-          variants: product.variants.map((v) => ({
-            ...v,
-            priceEGP: toNumber(v.priceEGP) ?? 0,
-          })),
-        };
-      }),
+    // One aggregate query for the whole page instead of one count per product.
+    const availableRows = await this.prisma.productKey.groupBy({
+      by: ['productId'],
+      where: {
+        productId: { in: products.map((p) => p.id) },
+        status: 'AVAILABLE',
+      },
+      _count: { _all: true },
+    });
+    const availableByProduct = new Map(
+      availableRows.map((row) => [row.productId, row._count._all]),
     );
+
+    const items = products.map((product) => ({
+      ...serializeAdminProduct(product),
+      keysTotal: product._count.keys,
+      mediaCount: product._count.media,
+      stock: availableByProduct.get(product.id) ?? 0,
+      variants: product.variants.map((v) => ({
+        ...v,
+        priceEGP: toNumber(v.priceEGP) ?? 0,
+      })),
+    }));
 
     return {
       items,
@@ -403,6 +420,7 @@ export class AdminService {
         },
       });
 
+      await this.bustCatalogCache();
       return serializeAdminProduct(product);
     } catch (error) {
       if (
@@ -482,6 +500,7 @@ export class AdminService {
         },
       });
 
+      await this.bustCatalogCache();
       return serializeAdminProduct(product);
     } catch (error) {
       if (
@@ -501,6 +520,7 @@ export class AdminService {
     }
 
     await this.prisma.product.delete({ where: { id } });
+    await this.bustCatalogCache();
     return { deleted: true, id };
   }
 
@@ -531,6 +551,7 @@ export class AdminService {
         })),
       });
 
+      await this.bustCatalogCache();
       return {
         productId,
         requested: codes.length,
@@ -590,7 +611,18 @@ export class AdminService {
         items: {
           include: {
             productKey: true,
-            product: true,
+            product: {
+              select: {
+                id: true,
+                title: true,
+                titleEn: true,
+                slug: true,
+                imageUrl: true,
+                platform: true,
+                priceEGP: true,
+                currencyCode: true,
+              },
+            },
           },
         },
         payment: true,
@@ -842,6 +874,7 @@ export class AdminService {
       summary: 'Updated store settings',
       metadata: { ...data },
     });
+    await this.cache.invalidateStore();
     return settings;
   }
 
@@ -927,6 +960,7 @@ export class AdminService {
       metadata: { from: existing.publicationStatus, to: dto.status },
     });
 
+    await this.bustCatalogCache();
     return serializeAdminProduct(product);
   }
 

@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useLocale } from "next-intl";
 
 export type CurrencyCode = "EGP" | "SAR" | "AED" | "KWD" | "QAR" | "USD" | "EUR";
 
@@ -113,17 +114,27 @@ function detectCurrencyFromLocale(): CurrencyCode {
   return "EGP";
 }
 
+/** Pick numeral/currency display locale from the active UI language. */
+function displayLocaleFor(uiLocale: string, currency: CurrencyOption): string {
+  if (uiLocale.startsWith("ar")) return currency.locale;
+  // Latin digits + English currency labels when the storefront is in English
+  if (currency.code === "EUR") return "en-IE";
+  return "en-US";
+}
+
 function formatMoney(
   amountEgp: number,
   currency: CurrencyOption,
   rates: Record<CurrencyCode, number>,
+  uiLocale: string,
 ): string {
   const rate = rates[currency.code] ?? currency.rateFromEgp;
   const converted = amountEgp * rate;
   const fraction = currency.code === "KWD" ? 3 : currency.code === "EGP" ? 0 : 2;
+  const locale = displayLocaleFor(uiLocale, currency);
 
   try {
-    return new Intl.NumberFormat(currency.locale, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency.code,
       maximumFractionDigits: fraction,
@@ -147,6 +158,7 @@ type CurrencyContextValue = {
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
+  const uiLocale = useLocale();
   const [currencyCode, setCurrencyCodeState] = useState<CurrencyCode>("EGP");
   const [rates, setRates] = useState<Record<CurrencyCode, number>>(FALLBACK_RATES);
   const [detected, setDetected] = useState(false);
@@ -208,10 +220,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         typeof storeBaseAmount === "string"
           ? Number(storeBaseAmount)
           : storeBaseAmount ?? 0;
-      if (Number.isNaN(value)) return formatMoney(0, currency, rates);
-      return formatMoney(value, currency, rates);
+      if (Number.isNaN(value)) return formatMoney(0, currency, rates, uiLocale);
+      return formatMoney(value, currency, rates, uiLocale);
     },
-    [currency, rates],
+    [currency, rates, uiLocale],
   );
 
   const convertFromEgp = useCallback(

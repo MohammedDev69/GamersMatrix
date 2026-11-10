@@ -1,9 +1,4 @@
 import { api, type Category, type Product } from "@/lib/api";
-import {
-  FIXTURE_CATEGORIES,
-  FIXTURE_PRODUCTS,
-  FIXTURE_SOURCE,
-} from "./fixtures";
 
 export type CatalogQuery = {
   lang?: string;
@@ -24,16 +19,27 @@ export type CatalogQuery = {
 
 export type CatalogResult = {
   items: Product[];
-  source: "api" | typeof FIXTURE_SOURCE;
+  source: "api";
   total: number;
   page: number;
   pageSize: number;
   hasMore: boolean;
 };
 
+type CatalogEnvelope = {
+  items: Product[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+};
+
 export type ProductResult = {
   product: Product | null;
-  source: "api" | typeof FIXTURE_SOURCE | "none";
+  source: "api" | "none";
 };
 
 function toQueryString(q: CatalogQuery): string {
@@ -50,87 +56,9 @@ function toQueryString(q: CatalogQuery): string {
   if (q.popular) params.set("popular", "true");
   if (q.sort) params.set("sort", q.sort);
   if (q.limit) params.set("limit", String(q.limit));
+  if (q.page) params.set("page", String(q.page));
+  if (q.pageSize) params.set("pageSize", String(q.pageSize));
   return params.toString();
-}
-
-function filterFixtures(q: CatalogQuery): Product[] {
-  let list = [...FIXTURE_PRODUCTS].filter((p) => p.active);
-
-  if (q.category) {
-    const cat = FIXTURE_CATEGORIES.find(
-      (c) => c.slug === q.category || c.id === q.category,
-    );
-    list = list.filter(
-      (p) =>
-        p.categoryId === q.category ||
-        p.categoryId === cat?.id ||
-        (q.category === "offers" && p.weeklyDeal) ||
-        (q.category === "games" && p.kind === "GAME_KEY") ||
-        (q.category === "gift-cards" && p.kind === "GIFT_CARD") ||
-        (q.category === "top-ups" && p.kind === "TOP_UP") ||
-        (q.category === "services" && p.kind === "SERVICE"),
-    );
-  }
-  if (q.featured) list = list.filter((p) => p.featured);
-  if (q.weeklyDeal) list = list.filter((p) => p.weeklyDeal);
-  if (q.hot) list = list.filter((p) => p.hot);
-  if (q.isNew) list = list.filter((p) => p.isNew);
-  if (q.kind) list = list.filter((p) => p.kind === q.kind);
-  if (q.platform) {
-    const needle = q.platform.toLowerCase();
-    list = list.filter((p) => p.platform.toLowerCase().includes(needle));
-  }
-  if (q.search) {
-    const s = q.search.toLowerCase().trim();
-    list = list.filter(
-      (p) =>
-        p.title.toLowerCase().includes(s) ||
-        p.description.toLowerCase().includes(s) ||
-        p.platform.toLowerCase().includes(s) ||
-        p.slug.toLowerCase().includes(s),
-    );
-  }
-
-  switch (q.sort) {
-    case "price_asc":
-      list.sort((a, b) => a.priceEGP - b.priceEGP);
-      break;
-    case "price_desc":
-      list.sort((a, b) => b.priceEGP - a.priceEGP);
-      break;
-    case "newest":
-      list.sort((a, b) => Number(Boolean(b.isNew)) - Number(Boolean(a.isNew)));
-      break;
-    default:
-      list.sort(
-        (a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)),
-      );
-  }
-
-  return list;
-}
-
-function allowFixtures(): boolean {
-  // Never serve demo catalog data in production builds
-  return process.env.NODE_ENV !== "production";
-}
-
-function paginate(
-  items: Product[],
-  page: number,
-  pageSize: number,
-): CatalogResult {
-  const total = items.length;
-  const start = (page - 1) * pageSize;
-  const slice = items.slice(start, start + pageSize);
-  return {
-    items: slice,
-    source: FIXTURE_SOURCE,
-    total,
-    page,
-    pageSize,
-    hasMore: start + pageSize < total,
-  };
 }
 
 function emptyCatalog(page: number, pageSize: number): CatalogResult {
@@ -147,40 +75,39 @@ function emptyCatalog(page: number, pageSize: number): CatalogResult {
 export async function listProducts(q: CatalogQuery = {}): Promise<CatalogResult> {
   const page = q.page && q.page > 0 ? q.page : 1;
   const pageSize = q.pageSize && q.pageSize > 0 ? Math.min(q.pageSize, 48) : 20;
+  // Section/widget callers ask for a fixed `limit` and expect a plain array.
+  // Catalogue paging sends page + pageSize so the API runs LIMIT/OFFSET instead
+  // of us re-downloading every previous page (limit = page * pageSize).
+  const wantsPage = q.page !== undefined || q.limit === undefined;
 
   try {
-    const qs = toQueryString({
-      ...q,
-      limit: q.limit ?? page * pageSize,
+    const qs = wantsPage
+      ? toQueryString({ ...q, page, pageSize })
+      : toQueryString(q);
+    const data = await api.get<Product[] | CatalogEnvelope>(`/products?${qs}`, {
+      revalidate: 45,
     });
-    const data = await api.get<Product[]>(`/products?${qs}`);
-    if (data.length > 0) {
-      const total = data.length;
-      const start = (page - 1) * pageSize;
-      // API has no offset yet — client-slice when we requested enough rows
-      const items =
-        data.length > pageSize ? data.slice(start, start + pageSize) : data;
+
+    if (Array.isArray(data)) {
       return {
-        items,
+        items: data,
         source: "api",
-        total,
-        page,
-        pageSize,
-        hasMore:
-          data.length > pageSize
-            ? start + pageSize < data.length
-            : data.length >= pageSize,
+        total: data.length,
+        page: 1,
+        pageSize: Math.max(data.length, 1),
+        hasMore: false,
       };
     }
-    // Empty API response: fixtures only in non-production
-    if (allowFixtures()) {
-      return paginate(filterFixtures(q), page, pageSize);
-    }
-    return emptyCatalog(page, pageSize);
+
+    return {
+      items: data.items,
+      source: "api",
+      total: data.meta.total,
+      page: data.meta.page,
+      pageSize: data.meta.pageSize,
+      hasMore: data.meta.hasMore,
+    };
   } catch {
-    if (allowFixtures()) {
-      return paginate(filterFixtures(q), page, pageSize);
-    }
     return emptyCatalog(page, pageSize);
   }
 }
@@ -192,40 +119,25 @@ export async function getProductBySlug(
   try {
     const product = await api.get<Product>(
       `/products/${encodeURIComponent(slug)}${lang ? `?lang=${lang}` : ""}`,
+      { revalidate: 60 },
     );
-    if (product) return { product, source: "api" };
+    return product ? { product, source: "api" } : { product: null, source: "none" };
   } catch {
-    /* fixtures below */
-  }
-
-  if (!allowFixtures()) {
     return { product: null, source: "none" };
   }
-
-  const fixture = FIXTURE_PRODUCTS.find((p) => p.slug === slug) || null;
-  return {
-    product: fixture,
-    source: fixture ? FIXTURE_SOURCE : "none",
-  };
 }
 
 export async function listCategories(lang?: string): Promise<{
   items: Category[];
-  source: "api" | typeof FIXTURE_SOURCE;
+  source: "api";
 }> {
   try {
     const items = await api.get<Category[]>(
       `/categories${lang ? `?lang=${lang}` : ""}`,
+      { revalidate: 120 },
     );
-    if (items.length > 0) return { items, source: "api" };
-    if (allowFixtures()) {
-      return { items: FIXTURE_CATEGORIES, source: FIXTURE_SOURCE };
-    }
-    return { items: [], source: "api" };
+    return { items, source: "api" };
   } catch {
-    if (allowFixtures()) {
-      return { items: FIXTURE_CATEGORIES, source: FIXTURE_SOURCE };
-    }
     return { items: [], source: "api" };
   }
 }
@@ -233,11 +145,12 @@ export async function listCategories(lang?: string): Promise<{
 export async function getCategoryBySlug(
   slug: string,
   lang?: string,
-): Promise<{ category: Category | null; source: "api" | typeof FIXTURE_SOURCE | "none" }> {
-  const { items, source } = await listCategories(lang);
+): Promise<{ category: Category | null; source: "api" | "none" }> {
+  const { items } = await listCategories(lang);
   const category = items.find((c) => c.slug === slug) || null;
-  if (category) return { category, source };
-  return { category: null, source: "none" };
+  return category
+    ? { category, source: "api" }
+    : { category: null, source: "none" };
 }
 
 export async function listRelatedProducts(
@@ -253,6 +166,3 @@ export async function listRelatedProducts(
   });
   return result.items.filter((p) => p.id !== product.id).slice(0, limit);
 }
-
-/** @deprecated Prefer catalog repository — kept for gradual migration */
-export { FIXTURE_PRODUCTS as FALLBACK_PRODUCTS };

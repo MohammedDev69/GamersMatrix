@@ -3,9 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { api, FALLBACK_PRODUCTS, type Product } from "@/lib/api";
+import { api, type Product } from "@/lib/api";
 import { useCurrency } from "@/lib/currency";
+import { getProductImageUrl } from "@/lib/product-image";
 import { Reveal } from "@/components/ui/Reveal";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { CountdownTimer } from "./CountdownTimer";
 
 function pickDeals(weekly: Product[], pool: Product[]) {
@@ -30,19 +32,18 @@ function shortPlatform(platform: string) {
 
 export function WeeklyDeals() {
   const [deals, setDeals] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const { formatPrice } = useCurrency();
 
   useEffect(() => {
     Promise.all([
       api.get<Product[]>("/products?weeklyDeal=true").catch(() => [] as Product[]),
-      api.get<Product[]>("/products").catch(() => FALLBACK_PRODUCTS),
-    ]).then(([weekly, all]) => {
-      const pool = all.length ? all : FALLBACK_PRODUCTS;
-      const weeklyList = weekly.length
-        ? weekly
-        : FALLBACK_PRODUCTS.filter((p) => p.weeklyDeal);
-      setDeals(pickDeals(weeklyList, pool));
-    });
+      api.get<Product[]>("/products").catch(() => [] as Product[]),
+    ])
+      .then(([weekly, all]) => {
+        setDeals(pickDeals(weekly, all));
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const end = useMemo(() => {
@@ -63,20 +64,29 @@ export function WeeklyDeals() {
         <CountdownTimer endsAt={end} />
       </div>
 
-      {deals.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-[16/10] rounded-[var(--gm-radius-card)]" />
+          ))}
+        </div>
+      ) : deals.length === 0 ? (
         <p className="gm-reveal text-sm text-[var(--gm-muted)]">لا توجد عروض حالياً</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {deals.map((deal, i) => (
+          {deals.map((deal, i) => {
+            const imageUrl = getProductImageUrl(deal.imageUrl);
+            return (
             <Link
               key={deal.id}
               href={`/products/${deal.slug}`}
               className="gm-reveal group space-y-2.5"
               style={{ transitionDelay: `${80 + i * 70}ms` }}
             >
-              <div className="gm-card-lift relative aspect-[16/10] overflow-hidden rounded-[var(--gm-radius-card)] border border-[var(--gm-border)] bg-[var(--gm-surface)]">
+              {imageUrl ? (
+                <div className="gm-card-lift relative aspect-[16/10] overflow-hidden rounded-[var(--gm-radius-card)] border border-[var(--gm-border)] bg-[var(--gm-surface)]">
                 <Image
-                  src={deal.imageUrl}
+                  src={imageUrl}
                   alt={deal.title}
                   fill
                   className="object-cover transition duration-700 group-hover:scale-[1.07] group-hover:brightness-110"
@@ -91,7 +101,8 @@ export function WeeklyDeals() {
                 <span className="absolute bottom-2 end-2 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur-sm">
                   {shortPlatform(deal.platform)}
                 </span>
-              </div>
+                </div>
+              ) : null}
               <p className="line-clamp-1 text-sm font-medium text-white transition group-hover:text-[var(--gm-accent-bright)]">
                 {deal.title}
               </p>
@@ -106,7 +117,8 @@ export function WeeklyDeals() {
                 ) : null}
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </Reveal>

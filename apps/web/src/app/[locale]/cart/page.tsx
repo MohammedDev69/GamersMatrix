@@ -9,6 +9,7 @@ import { api, type Cart } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { useCurrency } from "@/lib/currency";
+import { getProductImageUrl } from "@/lib/product-image";
 
 export default function CartPage() {
   const t = useTranslations("Cart");
@@ -72,16 +73,20 @@ export default function CartPage() {
         ) : (
           <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
             <div className="space-y-3">
-              {items.map((item) => (
+              {items.map((item) => {
+                const imageUrl = getProductImageUrl(item.product.imageUrl);
+                return (
                 <div key={item.id} className="gm-card flex gap-3 p-3">
-                  <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg">
-                    <Image
-                      src={item.product.imageUrl}
-                      alt={item.product.title}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
+                  {imageUrl ? (
+                    <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-lg">
+                      <Image
+                        src={imageUrl}
+                        alt={item.product.title}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex flex-1 flex-col gap-2">
                     <Link
                       href={`/products/${item.product.slug}`}
@@ -117,7 +122,8 @@ export default function CartPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div className="gm-card h-fit space-y-4 p-5">
               <h2 className="text-lg font-bold text-white">{t("total")}</h2>

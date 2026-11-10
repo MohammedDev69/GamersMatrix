@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+uploads
+.env
+.env.local
+*.log
+test
+src/**/*.spec.ts

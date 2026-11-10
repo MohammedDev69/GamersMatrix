@@ -3,6 +3,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { api, type Category } from "@/lib/api";
+import {
+  AdminListState,
+  AdminTableSkeleton,
+} from "@/components/admin/AdminListState";
 
 type AdminCategory = Category & {
   productsCount?: number;
@@ -43,10 +47,16 @@ export default function AdminCategoriesPage() {
   const [form, setForm] = useState<CatForm>(empty);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  async function load() {
-    const data = await api.get<AdminCategory[]>("/admin/categories");
-    setCategories(data);
+  async function load(soft = false) {
+    if (!soft) setLoading(true);
+    try {
+      const data = await api.get<AdminCategory[]>("/admin/categories");
+      setCategories(data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -93,7 +103,7 @@ export default function AdminCategoriesPage() {
         setMsg("تم إنشاء التصنيف");
       }
       setOpen(false);
-      await load();
+      await load(true);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "فشل الحفظ");
     } finally {
@@ -106,7 +116,7 @@ export default function AdminCategoriesPage() {
     try {
       await api.delete(`/admin/categories/${c.id}`);
       setMsg("تم الحذف");
-      await load();
+      await load(true);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "فشل الحذف");
     }
@@ -129,45 +139,53 @@ export default function AdminCategoriesPage() {
 
       {msg ? <p className="text-sm text-[var(--gm-accent-bright)]">{msg}</p> : null}
 
-      <div className="overflow-x-auto rounded-[var(--gm-radius-card)] border border-[var(--gm-border)]">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="bg-[var(--gm-surface)] text-[var(--gm-muted)]">
-            <tr>
-              <th className="px-3 py-3 text-start font-medium">الاسم</th>
-              <th className="px-3 py-3 text-start font-medium">Slug</th>
-              <th className="px-3 py-3 text-start font-medium">المنتجات</th>
-              <th className="px-3 py-3 text-start font-medium">إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((c) => (
-              <tr key={c.id} className="border-t border-[var(--gm-border)]">
-                <td className="px-3 py-3 font-semibold text-white">{c.name}</td>
-                <td className="px-3 py-3 text-[var(--gm-muted)]">{c.slug}</td>
-                <td className="px-3 py-3 text-[var(--gm-muted)]">{c.productsCount ?? 0}</td>
-                <td className="px-3 py-3">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(c)}
-                      className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-white"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(c)}
-                      className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-[var(--gm-danger)]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
+      <AdminListState
+        loading={loading}
+        empty={categories.length === 0}
+        emptyTitle="لا توجد تصنيفات"
+        emptyDescription="أنشئ تصنيفاً لتنظيم المنتجات في المتجر."
+        skeleton={<AdminTableSkeleton cols={4} rows={6} />}
+      >
+        <div className="overflow-x-auto rounded-[var(--gm-radius-card)] border border-[var(--gm-border)]">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-[var(--gm-surface)] text-[var(--gm-muted)]">
+              <tr>
+                <th className="px-3 py-3 text-start font-medium">الاسم</th>
+                <th className="px-3 py-3 text-start font-medium">Slug</th>
+                <th className="px-3 py-3 text-start font-medium">المنتجات</th>
+                <th className="px-3 py-3 text-start font-medium">إجراءات</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {categories.map((c) => (
+                <tr key={c.id} className="border-t border-[var(--gm-border)]">
+                  <td className="px-3 py-3 font-semibold text-white">{c.name}</td>
+                  <td className="px-3 py-3 text-[var(--gm-muted)]">{c.slug}</td>
+                  <td className="px-3 py-3 text-[var(--gm-muted)]">{c.productsCount ?? 0}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(c)}
+                        className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-white"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(c)}
+                        className="rounded border border-[var(--gm-border)] p-1.5 text-[var(--gm-muted)] hover:text-[var(--gm-danger)]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </AdminListState>
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">

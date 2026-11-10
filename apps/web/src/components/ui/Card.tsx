@@ -16,8 +16,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "gm-card p-4",
-        elevated && "bg-[var(--gm-surface-raised)]",
+        "gm-card relative p-4",
+        elevated && "bg-[var(--gm-surface-raised)] shadow-[var(--gm-shadow-2)]",
         interactive && "gm-card-lift cursor-pointer",
         className,
       )}

@@ -1,40 +1,101 @@
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+let accessToken: string | null = null;
+
 export type ApiError = {
   message: string;
   statusCode?: number;
   error?: string;
 };
 
+type ClientCacheEntry = { expiresAt: number; data: unknown };
+
+/** Browser-side TTL cache for public catalog GETs (complements Redis on API). */
+const clientCatalogCache = new Map<string, ClientCacheEntry>();
+const CLIENT_CATALOG_TTL_MS = 30_000;
+
+export type ApiFetchOptions = RequestInit & {
+  /** Next.js ISR seconds for server components (catalog reads). */
+  revalidate?: number;
+  /** Skip client memory cache for this request. */
+  skipCache?: boolean;
+};
+
 function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("gm_token");
+  return accessToken;
 }
 
 export function setToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) localStorage.setItem("gm_token", token);
-  else localStorage.removeItem("gm_token");
+  accessToken = token;
+  // Remove the legacy application JWT if it exists. Supabase owns persistence.
+  if (typeof window !== "undefined") localStorage.removeItem("gm_token");
+}
+
+function isPublicCatalogPath(path: string): boolean {
+  const bare = path.split("?")[0] || path;
+  return (
+    bare === "/products" ||
+    bare.startsWith("/products/") ||
+    bare === "/categories" ||
+    bare.startsWith("/categories/") ||
+    bare === "/store/public-config"
+  );
+}
+
+function catalogTtlSeconds(path: string): number {
+  const bare = path.split("?")[0] || path;
+  if (bare === "/store/public-config") return 120;
+  if (bare.startsWith("/products/") && bare !== "/products/") return 60;
+  return 45;
+}
+
+export function clearClientCatalogCache() {
+  clientCatalogCache.clear();
 }
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
+  options: ApiFetchOptions = {},
 ): Promise<T> {
-  const headers = new Headers(options.headers || {});
+  const { revalidate, skipCache, ...fetchOptions } = options;
+  const method = (fetchOptions.method || "GET").toUpperCase();
+  const headers = new Headers(fetchOptions.headers || {});
   const isFormData =
-    typeof FormData !== "undefined" && options.body instanceof FormData;
-  if (!headers.has("Content-Type") && options.body && !isFormData) {
+    typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
+  if (!headers.has("Content-Type") && fetchOptions.body && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
 
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
+  const catalogGet =
+    !skipCache && method === "GET" && isPublicCatalogPath(path);
+
+  if (catalogGet && typeof window !== "undefined") {
+    const hit = clientCatalogCache.get(path);
+    if (hit && hit.expiresAt > Date.now()) {
+      return hit.data as T;
+    }
+  }
+
+  // Mutations should not reuse stale catalog lists in the browser.
+  if (method !== "GET" && typeof window !== "undefined") {
+    clearClientCatalogCache();
+  }
+
+  const ttl = revalidate ?? catalogTtlSeconds(path);
+  const cacheInit: RequestInit = catalogGet
+    ? {
+        // Prefer ISR-style caching on the Next server; browsers still honor Cache-Control from API.
+        next: { revalidate: ttl },
+      }
+    : { cache: "no-store" };
+
   const res = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    ...options,
+    ...cacheInit,
+    ...fetchOptions,
     headers,
   });
 
@@ -55,11 +116,21 @@ export async function apiFetch<T>(
   }
 
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const data = (await res.json()) as T;
+
+  if (catalogGet && typeof window !== "undefined") {
+    clientCatalogCache.set(path, {
+      data,
+      expiresAt: Date.now() + CLIENT_CATALOG_TTL_MS,
+    });
+  }
+
+  return data;
 }
 
 export const api = {
-  get: <T>(path: string) => apiFetch<T>(path),
+  get: <T>(path: string, options?: ApiFetchOptions) =>
+    apiFetch<T>(path, options),
   post: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, {
       method: "POST",
@@ -207,6 +278,3 @@ export type CheckoutResponse = {
     couponCode: string | null;
   };
 };
-
-/** @deprecated Prefer catalog repository */
-export { FIXTURE_PRODUCTS as FALLBACK_PRODUCTS } from "@/lib/catalog/fixtures";

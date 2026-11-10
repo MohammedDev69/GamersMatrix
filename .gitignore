@@ -13,3 +13,10 @@ apps/api/prisma/*.db-journal
 apps/api/tsconfig.build.tsbuildinfo
 apps/api/uploads/
 **/uploads/
+
+# --- اختباريين مؤقتين تحتوي على بيانات اعتماد قاعدة بيانات (لا تُرفع أبداً) ---
+test-pooler.js
+apps/api/test-pooler.js
+
+# --- سجلات الوكيل (Opencode) ---
+.agents/

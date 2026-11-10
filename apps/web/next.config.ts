@@ -11,13 +11,7 @@ function apiImageHosts(): { protocol: "http" | "https"; hostname: string; port?:
     hostname: string;
     port?: string;
     pathname: string;
-  }[] = [
-    {
-      protocol: "https",
-      hostname: "images.unsplash.com",
-      pathname: "/**",
-    },
-  ];
+  }[] = [];
 
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -49,7 +43,19 @@ const nextConfig: NextConfig = {
     root: monorepoRoot,
   },
   images: {
-    remotePatterns: apiImageHosts(),
+    remotePatterns: [
+      ...apiImageHosts(),
+      {
+        protocol: "https",
+        hostname: "cdn.cloudflare.steamstatic.com",
+        pathname: "/steam/apps/**",
+      },
+      {
+        protocol: "https",
+        hostname: "shared.akamai.steamstatic.com",
+        pathname: "/store_item_assets/steam/apps/**",
+      },
+    ],
   },
   async headers() {
     return [

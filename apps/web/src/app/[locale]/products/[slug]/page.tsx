@@ -1,13 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Heart } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { StoreShell } from "@/components/layout/StoreShell";
 import { ProductCard } from "@/components/products/ProductCard";
+import { ProductGallery } from "@/components/products/ProductGallery";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -17,13 +17,13 @@ import {
   getProductBySlug,
   listRelatedProducts,
 } from "@/lib/catalog/repository";
-import { PRODUCT_ART_PLACEHOLDER } from "@/lib/catalog/fixtures";
 import type { Product } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { useCurrency } from "@/lib/currency";
 import { useWishlist } from "@/lib/wishlist";
 import { getValidSale, isOutOfStock } from "@/lib/pricing";
+import { cn } from "@/lib/cn";
 
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -39,17 +39,21 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [related, setRelated] = useState<Product[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
+  const [relatedNear, setRelatedNear] = useState(false);
+  const relatedRef = useRef<HTMLElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
   const [wishBusy, setWishBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     setNotFound(false);
-    setImgFailed(false);
+    setRelated([]);
+    setRelatedLoading(false);
+    setRelatedNear(false);
     getProductBySlug(slug, locale)
       .then(async (res) => {
         if (!res.product) {
@@ -58,8 +62,6 @@ export default function ProductDetailPage() {
           return;
         }
         setProduct(res.product);
-        const rel = await listRelatedProducts(res.product, locale, 6);
-        setRelated(rel);
       })
       .catch(() => {
         setNotFound(true);
@@ -67,6 +69,47 @@ export default function ProductDetailPage() {
       })
       .finally(() => setLoading(false));
   }, [slug, locale]);
+
+  // Lazy loading: "related products" sit below the fold — observe the
+  // section and only fetch when the visitor approaches it.
+  useEffect(() => {
+    if (!product || relatedNear) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setRelatedNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setRelatedNear(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    const el = relatedRef.current;
+    if (el) observer.observe(el);
+    return () => observer.disconnect();
+  }, [product, relatedNear]);
+
+  useEffect(() => {
+    if (!product || !relatedNear) return;
+    let cancelled = false;
+    setRelatedLoading(true);
+    listRelatedProducts(product, locale, 6)
+      .then((rel) => {
+        if (!cancelled) setRelated(rel);
+      })
+      .catch(() => {
+        if (!cancelled) setRelated([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRelatedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [product, locale, relatedNear]);
 
   async function handleAdd() {
     if (!product) return;
@@ -138,17 +181,13 @@ export default function ProductDetailPage() {
   return (
     <StoreShell>
       <div className="gm-container py-8">
-        <div className="grid gap-8 md:grid-cols-[360px_1fr]">
-          <div className="relative aspect-[3/4] overflow-hidden rounded-[var(--gm-radius-card)] ring-1 ring-[var(--gm-border)] md:aspect-square">
-            <Image
-              src={imgFailed ? PRODUCT_ART_PLACEHOLDER : product.imageUrl}
-              alt={product.title}
-              fill
-              className="object-cover"
-              priority
-              onError={() => setImgFailed(true)}
-            />
-          </div>
+        <div className={cn("grid gap-8 md:grid-cols-[minmax(280px,420px)_1fr]")}>
+          <ProductGallery
+            title={product.title}
+            platform={product.platform}
+            imageUrl={product.imageUrl}
+            galleryUrls={[product.ogImageUrl]}
+          />
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Badge>
@@ -259,16 +298,26 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {related.length > 0 ? (
-          <div className="mt-12">
-            <SectionHeading title={t("related")} />
+        <section ref={relatedRef} className="mt-12">
+          <SectionHeading title={t("related")} />
+          {relatedLoading ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, n) => (
+                <div key={n} className="space-y-2">
+                  <Skeleton className="aspect-[3/4.4] rounded-[var(--gm-radius-card)]" />
+                  <Skeleton className="h-3.5 w-3/4 rounded-md" />
+                  <Skeleton className="h-3 w-1/2 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ) : related.length > 0 ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {related.map((p, i) => (
                 <ProductCard key={p.id} product={p} index={i} />
               ))}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </section>
       </div>
     </StoreShell>
   );

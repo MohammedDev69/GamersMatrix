@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type Settings = {
   storeName: string;
@@ -41,13 +42,30 @@ export default function AdminSettingsPage() {
     }
   }
 
-  if (!form) return <p className="text-[var(--gm-muted)]">{error || "..."}</p>;
+  if (!form) {
+    return (
+      <div className="mx-auto max-w-xl space-y-3" aria-busy="true">
+        <div>
+          <h1 className="text-2xl font-extrabold text-white">إعدادات المتجر</h1>
+          <p className="mt-1 text-sm text-[var(--gm-muted)]">
+            {error || "جاري تحميل الإعدادات…"}
+          </p>
+        </div>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 w-full rounded-[var(--gm-radius-btn)]" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-xl space-y-3">
-      <p className="text-sm text-[var(--gm-muted)]">
-        أسرار الدفع والبريد تُدار عبر متغيرات البيئة فقط ولا تُعرض هنا.
-      </p>
+      <div>
+        <h1 className="text-2xl font-extrabold text-white">إعدادات المتجر</h1>
+        <p className="mt-1 text-sm text-[var(--gm-muted)]">
+          أسرار الدفع والبريد تُدار عبر متغيرات البيئة فقط ولا تُعرض هنا.
+        </p>
+      </div>
       {(
         [
           ["storeName", "اسم المتجر"],

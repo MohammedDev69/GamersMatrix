@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Gamepad2,
   Gift,
   Headphones,
   Home,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
+import { Logo } from "@/components/brand/Logo";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { Drawer } from "@/components/ui/Drawer";
@@ -115,11 +115,8 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
       closeLabel={tCommon("close")}
     >
       <nav className="flex flex-col gap-1">
-        <div className="mb-3 flex items-center gap-2 px-3 text-[var(--gm-violet-400)]">
-          <Gamepad2 className="h-4 w-4" aria-hidden />
-          <span className="text-xs font-semibold tracking-wide" dir="ltr">
-            GAMERS MATRIX
-          </span>
+        <div className="mb-3 px-3">
+          <Logo size={32} withWordmark />
         </div>
         <NavLinks onNavigate={onClose} vertical />
         {!user && (

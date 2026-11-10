@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api } from "@/lib/api";
 import { formatEGP } from "@/lib/format";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { AdminTableSkeleton } from "@/components/admin/AdminListState";
 
 type CustomerDetail = {
   id: string;
@@ -35,7 +37,18 @@ export default function AdminCustomerDetailPage() {
   }, [id]);
 
   if (error) return <p className="text-rose-400">{error}</p>;
-  if (!data) return <p className="text-[var(--gm-muted)]">...</p>;
+  if (!data) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <Skeleton className="h-4 w-24" />
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <AdminTableSkeleton cols={4} rows={5} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -48,26 +61,30 @@ export default function AdminCustomerDetailPage() {
           {data.email}
         </p>
       </div>
-      <table className="w-full text-start text-sm">
-        <thead className="text-[var(--gm-muted)]">
-          <tr>
-            <th className="py-2">طلب</th>
-            <th className="py-2">دفع</th>
-            <th className="py-2">تسليم</th>
-            <th className="py-2">مبلغ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.orders.map((o) => (
-            <tr key={o.id} className="border-t border-[var(--gm-border)]">
-              <td className="py-2 font-mono text-xs">{o.orderNumber}</td>
-              <td className="py-2">{o.status}</td>
-              <td className="py-2">{o.fulfillmentStatus}</td>
-              <td className="py-2">{formatEGP(o.totalEGP)}</td>
+      {data.orders.length === 0 ? (
+        <p className="text-sm text-[var(--gm-muted)]">لا توجد طلبات لهذا العميل.</p>
+      ) : (
+        <table className="w-full text-start text-sm">
+          <thead className="text-[var(--gm-muted)]">
+            <tr>
+              <th className="py-2">طلب</th>
+              <th className="py-2">دفع</th>
+              <th className="py-2">تسليم</th>
+              <th className="py-2">مبلغ</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.orders.map((o) => (
+              <tr key={o.id} className="border-t border-[var(--gm-border)]">
+                <td className="py-2 font-mono text-xs">{o.orderNumber}</td>
+                <td className="py-2">{o.status}</td>
+                <td className="py-2">{o.fulfillmentStatus}</td>
+                <td className="py-2">{formatEGP(o.totalEGP)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
